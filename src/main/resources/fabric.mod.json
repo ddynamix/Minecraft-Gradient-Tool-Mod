@@ -1,0 +1,37 @@
+{
+	"schemaVersion": 1,
+	"id": "gradient-wand",
+	"version": "${version}",
+	"name": "gradient-wand",
+	"description": "This is the first mod by ddynamix, a gradient tool to help you build.",
+	"authors": [
+		"ddynamix"
+	],
+	"contact": { // TODO: change this
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "MIT",
+	"icon": "assets/gradient-wand/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"net.tyler.gradientwant.GradientWand"
+		],
+		"client": [
+			"net.tyler.gradientwant.GradientWandClient"
+		],
+		"fabric-datagen": [
+			"net.tyler.gradientwant.GradientWandDataGenerator"
+		]
+	},
+	"mixins": [
+		"gradient-wand.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~1.20.1",
+		"java": ">=17",
+		"fabric-api": "*"
+	}
+}
