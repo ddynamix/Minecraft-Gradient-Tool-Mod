@@ -1,8 +1,8 @@
-package net.tyler.gradientwant;
+package net.tyler.gradientwand;
 
 import net.fabricmc.api.ClientModInitializer;
 
-public class TutorialModClient implements ClientModInitializer {
+public class GradientWandClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         // Client-side initialization code here

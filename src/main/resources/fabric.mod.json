@@ -7,7 +7,7 @@
 	"authors": [
 		"ddynamix"
 	],
-	"contact": { // TODO: change this
+	"contact": {
 		"homepage": "https://fabricmc.net/",
 		"sources": "https://github.com/FabricMC/fabric-example-mod"
 	},
@@ -16,17 +16,17 @@
 	"environment": "*",
 	"entrypoints": {
 		"main": [
-			"net.tyler.gradientwant.GradientWand"
+			"net.tyler.gradientwand.GradientWand"
 		],
 		"client": [
-			"net.tyler.gradientwant.GradientWandClient"
+			"net.tyler.gradientwand.GradientWandClient"
 		],
 		"fabric-datagen": [
-			"net.tyler.gradientwant.GradientWandDataGenerator"
+			"net.tyler.gradientwand.GradientWandDataGenerator"
 		]
 	},
 	"mixins": [
-		"gradient-wand.mixins.json"
+		"gradient_wand.mixins.json"
 	],
 	"depends": {
 		"fabricloader": ">=0.19.5",

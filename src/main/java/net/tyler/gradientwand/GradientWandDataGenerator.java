@@ -1,4 +1,4 @@
-package net.tyler.gradientwant;
+package net.tyler.gradientwand;
 
 import net.fabricmc.fabric.api.datagen.v1.DataGeneratorEntrypoint;
 import net.fabricmc.fabric.api.datagen.v1.FabricDataGenerator;

@@ -1,9 +1,10 @@
-package net.tyler.gradientwant;
+package net.tyler.gradientwand;
 
 import net.fabricmc.api.ModInitializer;
 
 import net.minecraft.util.Identifier;
 
+import net.tyler.gradientwand.item.ModItems;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,6 +16,7 @@ public class GradientWand implements ModInitializer {
 	public void onInitialize() {
 
 		LOGGER.info("Hello Fabric world!");
+		ModItems.registerModItems();
 	}
 
 	public static Identifier id(String path) {
