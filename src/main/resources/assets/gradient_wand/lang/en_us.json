@@ -1,3 +1,5 @@
 {
-  "item.gradient_wand.gradient_wand": "Gradient Wand"
+  "item.gradient_wand.gradient_wand": "Gradient Wand",
+
+  "itemgroup.gradient_wand": "Gradient Wands"
 }

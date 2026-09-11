@@ -9,10 +9,11 @@ import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.util.Identifier;
 import net.tyler.gradientwand.GradientWand;
+import net.tyler.gradientwand.item.custom.GradientWandItem;
 
 public class ModItems {
     public static final Item GRADIENT_WAND = registerItem("gradient_wand",
-            new Item(new FabricItemSettings()));
+            new GradientWandItem(new FabricItemSettings().maxCount(1)));
 
     public static void addItemsToIngredientItemGroup(FabricItemGroupEntries entries) {
         entries.add(GRADIENT_WAND);
