@@ -22,10 +22,12 @@ import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
+import net.tyler.gradientwand.cost.MaterialCost;
 import net.tyler.gradientwand.undo.UndoHistory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class GradientWandItem extends Item {
 
@@ -49,17 +51,14 @@ public class GradientWandItem extends Item {
         super(settings);
     }
 
-    // Left-clicking with the wand clears the selection instead of breaking the block
-    public static void registerCancelOnAttack() {
+    // The wand never breaks blocks. Cancelling is handled client side instead, so that it works
+    // when you are aiming at open air, which is the normal case once a preview is on screen.
+    public static void registerNoBlockBreaking() {
         AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> {
             ItemStack stack = player.getStackInHand(hand);
 
             if (!(stack.getItem() instanceof GradientWandItem)) {
                 return ActionResult.PASS;
-            }
-
-            if (!world.isClient()) {
-                cancelSelection(player, stack);
             }
 
             return ActionResult.SUCCESS;
@@ -379,7 +378,24 @@ public class GradientWandItem extends Item {
         return settings.mode() == WandSettings.Mode.WALL ? MAX_WALL_BLOCKS : MAX_BLOCKS;
     }
 
-    // Places the planned blocks and reports exactly what changed, so it can be undone
+    // The positions that would actually change. The cost has to be based on these, not on the
+    // whole plan, because occupied positions are skipped.
+    private static List<PlannedBlock> placeable(PlayerEntity player, List<PlannedBlock> planned) {
+        World world = player.getWorld();
+        List<PlannedBlock> free = new ArrayList<>();
+
+        for (PlannedBlock block : planned) {
+            BlockPos pos = block.pos();
+
+            if (world.getBlockState(pos).isReplaceable() && world.canPlayerModifyAt(player, pos)) {
+                free.add(block);
+            }
+        }
+
+        return free;
+    }
+
+    // Places an already filtered list and reports what changed, so it can be undone
     private static List<UndoHistory.Change> place(PlayerEntity player, List<PlannedBlock> planned) {
         World world = player.getWorld();
         List<UndoHistory.Change> changes = new ArrayList<>();
@@ -387,10 +403,6 @@ public class GradientWandItem extends Item {
         for (PlannedBlock block : planned) {
             BlockPos pos = block.pos();
             BlockState before = world.getBlockState(pos);
-
-            if (!before.isReplaceable() || !world.canPlayerModifyAt(player, pos)) {
-                continue;
-            }
 
             // NOTIFY_LISTENERS updates clients but skips per-block neighbour and light updates
             if (world.setBlockState(pos, block.state(), Block.NOTIFY_LISTENERS)) {
@@ -420,7 +432,8 @@ public class GradientWandItem extends Item {
 
         if (palette.isEmpty()) {
             player.sendMessage(Text.literal("Put some blocks in your hotbar first").formatted(Formatting.RED), true);
-            return; // keep point A so you can fix your hotbar and click again
+            clearPointA(stack);
+            return;
         }
 
         WandSettings settings = WandSettings.from(stack);
@@ -430,11 +443,28 @@ public class GradientWandItem extends Item {
         if (size > maxFor(settings)) {
             player.sendMessage(Text.literal("That selection is " + size + " blocks, max is " + maxFor(settings))
                     .formatted(Formatting.RED), true);
-            return; // keep point A
+            clearPointA(stack);
+            return;
         }
 
         List<PlannedBlock> planned = plan(new GradientRequest(pointA, end, palette, settings));
-        List<UndoHistory.Change> changes = place(player, planned);
+        List<PlannedBlock> free = placeable(player, planned);
+
+        // Creative players never pay, and never see the shortage list
+        if (!player.isCreative()) {
+            Map<Item, Integer> needed = MaterialCost.required(free);
+            Map<Item, Integer> held = MaterialCost.available(player);
+
+            if (!MaterialCost.hasEnough(needed, held)) {
+                MaterialCost.report(player, needed, held);
+                clearPointA(stack);
+                return;
+            }
+
+            MaterialCost.consume(player, needed);
+        }
+
+        List<UndoHistory.Change> changes = place(player, free);
 
         UndoHistory.record(player, changes);
 
@@ -469,7 +499,7 @@ public class GradientWandItem extends Item {
         return BlockPos.ofFloored(hit.getPos());
     }
 
-    private static void cancelSelection(PlayerEntity player, ItemStack stack) {
+    public static void cancelSelection(PlayerEntity player, ItemStack stack) {
         if (getPointA(stack) == null) {
             return;
         }

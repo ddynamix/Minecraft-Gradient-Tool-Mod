@@ -4,16 +4,13 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.Item;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import net.tyler.gradientwand.cost.MaterialCost;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 // Server side only, and only ever touched from the main server thread, so a plain HashMap is fine.
 public class UndoHistory {
@@ -53,6 +50,7 @@ public class UndoHistory {
         }
 
         World world = player.getWorld();
+        Map<Item, Integer> refunds = new LinkedHashMap<>();
         int restored = 0;
 
         for (Change change : steps.pop()) {
@@ -64,7 +62,16 @@ public class UndoHistory {
 
             if (world.setBlockState(change.pos(), change.before(), Block.NOTIFY_LISTENERS)) {
                 restored++;
+
+                // Creative players were never charged, so there is nothing to give back
+                if (!player.isCreative()) {
+                    refunds.merge(change.after().getBlock().asItem(), 1, Integer::sum);
+                }
             }
+        }
+
+        if (!refunds.isEmpty()) {
+            MaterialCost.refund(player, refunds);
         }
 
         return restored;

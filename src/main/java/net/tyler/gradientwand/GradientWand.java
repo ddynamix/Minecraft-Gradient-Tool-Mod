@@ -8,6 +8,7 @@ import net.tyler.gradientwand.command.GradientWandCommand;
 import net.tyler.gradientwand.item.ModItemGroups;
 import net.tyler.gradientwand.item.ModItems;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
+import net.tyler.gradientwand.network.WandCancelPacket;
 import net.tyler.gradientwand.network.WandSettingsPacket;
 import net.tyler.gradientwand.network.WandUndoPacket;
 import net.tyler.gradientwand.undo.UndoHistory;
@@ -23,11 +24,12 @@ public class GradientWand implements ModInitializer {
 		LOGGER.info("Hello Fabric world!");
 		ModItems.registerModItems();
 		ModItemGroups.registerItemGroups();
-		GradientWandItem.registerCancelOnAttack();
+		GradientWandItem.registerNoBlockBreaking();
 		GradientWandCommand.register();
 		WandSettingsPacket.registerReceiver();
 		WandUndoPacket.registerReceiver();
 		UndoHistory.registerCleanup();
+		WandCancelPacket.registerReceiver();
 	}
 
 	public static Identifier id(String path) {
