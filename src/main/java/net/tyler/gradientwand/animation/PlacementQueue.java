@@ -72,6 +72,50 @@ public class PlacementQueue {
         ACTIVE.add(new Animation(player, origin, ordered, paid));
     }
 
+    // Undo pressed while a wave is still travelling: stop it, put back whatever it managed to
+    // place, and refund every block that was paid for. Returns how many were removed, or -1
+    // when this player had nothing in flight.
+    public static int cancel(PlayerEntity player) {
+        for (Animation animation : ACTIVE) {
+            if (animation.player != player) {
+                continue;
+            }
+
+            List<BlockState> refunds = new ArrayList<>();
+            int reverted = 0;
+
+            for (UndoHistory.Change change : animation.changes) {
+                if (animation.world.getBlockState(change.pos()) != change.after()) {
+                    continue; // someone else owns this spot now, so leave it alone
+                }
+
+                if (animation.world.setBlockState(change.pos(), change.before(), Block.NOTIFY_LISTENERS)) {
+                    reverted++;
+                    refunds.add(change.after());
+                }
+            }
+
+            // Blocks the wave never reached, and ones it could not place, were still paid for
+            for (int i = animation.index; i < animation.blocks.size(); i++) {
+                refunds.add(animation.blocks.get(i).state());
+            }
+
+            for (GradientWandItem.PlannedBlock block : animation.missed) {
+                refunds.add(block.state());
+            }
+
+            if (animation.paid && !refunds.isEmpty()) {
+                MaterialCost.refund(player, MaterialCost.countStates(refunds));
+            }
+
+            ACTIVE.remove(animation);
+
+            return reverted;
+        }
+
+        return -1;
+    }
+
     private static void tick() {
         Iterator<Animation> animations = ACTIVE.iterator();
 
@@ -147,7 +191,7 @@ public class PlacementQueue {
     }
 
     private static void finish(Animation animation) {
-        UndoHistory.record(animation.player, animation.changes);
+        UndoHistory.record(animation.player, animation.changes, animation.paid);
 
         String note = "";
 

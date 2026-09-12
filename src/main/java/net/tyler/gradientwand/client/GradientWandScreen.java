@@ -9,6 +9,7 @@ import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.screen.ScreenTexts;
 import net.minecraft.text.Text;
 import net.tyler.gradientwand.item.custom.WandSettings;
+import net.tyler.gradientwand.network.WandRedoPacket;
 import net.tyler.gradientwand.network.WandSettingsPacket;
 import net.tyler.gradientwand.network.WandUndoPacket;
 
@@ -58,8 +59,13 @@ public class GradientWandScreen extends Screen {
                 .dimensions(x, buttonY, half, WIDGET_HEIGHT)
                 .build());
 
-        addDrawableChild(ButtonWidget.builder(ScreenTexts.DONE, button -> close())
+        addDrawableChild(ButtonWidget.builder(Text.literal("Redo"),
+                        button -> ClientPlayNetworking.send(new WandRedoPacket()))
                 .dimensions(x + half + 4, buttonY, half, WIDGET_HEIGHT)
+                .build());
+
+        addDrawableChild(ButtonWidget.builder(ScreenTexts.DONE, button -> close())
+                .dimensions(x, buttonY + SPACING, WIDGET_WIDTH, WIDGET_HEIGHT)
                 .build());
     }
 

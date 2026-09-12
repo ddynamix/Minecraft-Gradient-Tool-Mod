@@ -1,5 +1,6 @@
 package net.tyler.gradientwand.cost;
 
+import net.minecraft.block.BlockState;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Item;
@@ -24,6 +25,18 @@ public class MaterialCost {
         }
 
         return required;
+    }
+
+    // The same count, taken from raw block states. Undo and redo work from history, which
+    // stores states rather than planned blocks.
+    public static Map<Item, Integer> countStates(List<BlockState> states) {
+        Map<Item, Integer> counts = new LinkedHashMap<>();
+
+        for (BlockState state : states) {
+            counts.merge(state.getBlock().asItem(), 1, Integer::sum);
+        }
+
+        return counts;
     }
 
     public static Map<Item, Integer> available(PlayerEntity player) {
