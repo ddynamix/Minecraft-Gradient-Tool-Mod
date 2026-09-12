@@ -4,6 +4,7 @@ import net.fabricmc.api.ModInitializer;
 
 import net.minecraft.util.Identifier;
 
+import net.tyler.gradientwand.command.GradientWandCommand;
 import net.tyler.gradientwand.item.ModItemGroups;
 import net.tyler.gradientwand.item.ModItems;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
@@ -20,6 +21,7 @@ public class GradientWand implements ModInitializer {
 		ModItems.registerModItems();
 		ModItemGroups.registerItemGroups();
 		GradientWandItem.registerCancelOnAttack();
+		GradientWandCommand.register();
 	}
 
 	public static Identifier id(String path) {

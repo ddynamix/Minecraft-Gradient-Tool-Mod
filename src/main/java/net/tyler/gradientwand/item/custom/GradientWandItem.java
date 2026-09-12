@@ -109,6 +109,7 @@ public class GradientWandItem extends Item {
             tooltip.add(Text.literal("Right-click a block to set point A").formatted(Formatting.GRAY));
         }
 
+        tooltip.add(Text.literal(WandSettings.from(stack).describe()).formatted(Formatting.DARK_GRAY));
         super.appendTooltip(stack, world, tooltip, context);
     }
 
@@ -118,7 +119,6 @@ public class GradientWandItem extends Item {
         return false;
     }
 
-    // Walks the line from one point to the other, placing palette blocks in even bands
     // One position the wand intends to fill, and what goes there
     public record PlannedBlock(BlockPos pos, BlockState state) {
     }
@@ -196,6 +196,12 @@ public class GradientWandItem extends Item {
 
         if (pointA == null) {
             setPointA(stack, pos);
+
+            // A fresh seed per selection, so dithering is stable while you aim
+            WandSettings.from(stack)
+                    .withSeed(player.getWorld().getRandom().nextLong())
+                    .save(stack);
+
             player.sendMessage(Text.literal("Point A set at " + pos.toShortString()), true);
             return;
         }
