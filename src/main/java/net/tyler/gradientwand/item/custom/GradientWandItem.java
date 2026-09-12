@@ -28,8 +28,6 @@ import java.util.List;
 public class GradientWandItem extends Item {
 
     private static final String POINT_A_KEY = "PointA";
-
-
     // How far the wand reaches when you right-click the air
     private static final double AIR_RANGE = 16.0;
     // Safety net so a mis-click cannot try to fill thousands of blocks
@@ -121,16 +119,20 @@ public class GradientWandItem extends Item {
     }
 
     // Walks the line from one point to the other, placing palette blocks in even bands
-    private static int drawGradient(PlayerEntity player, BlockPos from, BlockPos to, List<BlockState> palette) {
-        World world = player.getWorld();
+    // One position the wand intends to fill, and what goes there
+    public record PlannedBlock(BlockPos pos, BlockState state) {
+    }
 
+    // Every block this gradient would place, from point A to point B. Pure maths, no world access.
+    private static List<PlannedBlock> planLine(BlockPos from, BlockPos to, List<BlockState> palette) {
         int dx = to.getX() - from.getX();
         int dy = to.getY() - from.getY();
         int dz = to.getZ() - from.getZ();
 
         int count = blocksInLine(from, to);
         int steps = count - 1;
-        int placed = 0;
+
+        List<PlannedBlock> planned = new ArrayList<>(count);
 
         for (int i = 0; i < count; i++) {
             double t = steps == 0 ? 0.0 : (double) i / steps;
@@ -140,13 +142,48 @@ public class GradientWandItem extends Item {
                     from.getY() + (int) Math.round(t * dy),
                     from.getZ() + (int) Math.round(t * dz));
 
-            BlockState state = palette.get(i * palette.size() / count);
+            planned.add(new PlannedBlock(pos, palette.get(i * palette.size() / count)));
+        }
+
+        return planned;
+    }
+
+    public static List<PlannedBlock> previewFor(PlayerEntity player, ItemStack stack) {
+        BlockPos from = getPointA(stack);
+
+        if (from == null) {
+            return List.of();
+        }
+
+        List<BlockState> palette = readPalette(player);
+
+        if (palette.isEmpty()) {
+            return List.of();
+        }
+
+        BlockPos raw = raycastForPoint(player);
+        BlockPos to = player.isSneaking() ? snapToAxis(from, raw, dominantAxis(from, raw)) : raw;
+
+        if (blocksInLine(from, to) > MAX_BLOCKS) {
+            return List.of();
+        }
+
+        return planLine(from, to, palette);
+    }
+
+    // Places the planned blocks, skipping spots that are not free
+    private static int drawGradient(PlayerEntity player, BlockPos from, BlockPos to, List<BlockState> palette) {
+        World world = player.getWorld();
+        int placed = 0;
+
+        for (PlannedBlock block : planLine(from, to, palette)) {
+            BlockPos pos = block.pos();
 
             if (!world.getBlockState(pos).isReplaceable() || !world.canPlayerModifyAt(player, pos)) {
                 continue;
             }
 
-            if (world.setBlockState(pos, state)) {
+            if (world.setBlockState(pos, block.state())) {
                 placed++;
             }
         }
