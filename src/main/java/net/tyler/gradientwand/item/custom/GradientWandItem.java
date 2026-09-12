@@ -22,6 +22,7 @@ import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
+import net.tyler.gradientwand.undo.UndoHistory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -288,21 +289,29 @@ public class GradientWandItem extends Item {
         };
     }
 
-    // AUTO means the longer side of the wall. An axis pointing straight through the wall would
-    // give every block the same colour, so that falls back to AUTO as well.
+    // HORIZONTAL and VERTICAL mean "along the wall", not a world axis, so a wall running north
+    // to south and one running east to west both do the sensible thing. Length never comes into it.
     private static Direction.Axis resolveGradientAxis(WandSettings.GradientAxis choice, BlockPos from, BlockPos to) {
-        Direction.Axis requested = switch (choice) {
-            case X -> Direction.Axis.X;
-            case Y -> Direction.Axis.Y;
-            case Z -> Direction.Axis.Z;
-            case AUTO -> null;
+        return switch (choice) {
+            case VERTICAL -> sizeAlong(from, to, Direction.Axis.Y) > 1
+                    ? Direction.Axis.Y
+                    : dominantAxis(from, to);
+            case HORIZONTAL -> resolveHorizontal(from, to);
+            case AUTO -> dominantAxis(from, to);
         };
+    }
 
-        if (requested != null && sizeAlong(from, to, requested) > 1) {
-            return requested;
+    // Whichever of X and Z actually lies in the wall. An upright wall only has one of them, so
+    // there is nothing to guess. A flat floor has both, and only then does the longer side win.
+    private static Direction.Axis resolveHorizontal(BlockPos from, BlockPos to) {
+        int sizeX = sizeAlong(from, to, Direction.Axis.X);
+        int sizeZ = sizeAlong(from, to, Direction.Axis.Z);
+
+        if (sizeX <= 1 && sizeZ <= 1) {
+            return dominantAxis(from, to);
         }
 
-        return dominantAxis(from, to);
+        return sizeX >= sizeZ ? Direction.Axis.X : Direction.Axis.Z;
     }
 
     private static int sizeAlong(BlockPos from, BlockPos to, Direction.Axis axis) {
@@ -370,25 +379,26 @@ public class GradientWandItem extends Item {
         return settings.mode() == WandSettings.Mode.WALL ? MAX_WALL_BLOCKS : MAX_BLOCKS;
     }
 
-    // Places the planned blocks, skipping spots that are not free
-    private static int place(PlayerEntity player, List<PlannedBlock> planned) {
+    // Places the planned blocks and reports exactly what changed, so it can be undone
+    private static List<UndoHistory.Change> place(PlayerEntity player, List<PlannedBlock> planned) {
         World world = player.getWorld();
-        int placed = 0;
+        List<UndoHistory.Change> changes = new ArrayList<>();
 
         for (PlannedBlock block : planned) {
             BlockPos pos = block.pos();
+            BlockState before = world.getBlockState(pos);
 
-            if (!world.getBlockState(pos).isReplaceable() || !world.canPlayerModifyAt(player, pos)) {
+            if (!before.isReplaceable() || !world.canPlayerModifyAt(player, pos)) {
                 continue;
             }
 
             // NOTIFY_LISTENERS updates clients but skips per-block neighbour and light updates
             if (world.setBlockState(pos, block.state(), Block.NOTIFY_LISTENERS)) {
-                placed++;
+                changes.add(new UndoHistory.Change(pos, before, block.state()));
             }
         }
 
-        return placed;
+        return changes;
     }
 
     private static void handleClick(PlayerEntity player, ItemStack stack, BlockPos pos) {
@@ -424,9 +434,11 @@ public class GradientWandItem extends Item {
         }
 
         List<PlannedBlock> planned = plan(new GradientRequest(pointA, end, palette, settings));
-        int placed = place(player, planned);
+        List<UndoHistory.Change> changes = place(player, planned);
 
-        player.sendMessage(Text.literal("Placed " + placed + " of " + planned.size() + " blocks"), true);
+        UndoHistory.record(player, changes);
+
+        player.sendMessage(Text.literal("Placed " + changes.size() + " of " + planned.size() + " blocks"), true);
 
         clearPointA(stack);
     }

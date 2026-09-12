@@ -1,5 +1,8 @@
 {
   "item.gradient_wand.gradient_wand": "Gradient Wand",
 
-  "itemgroup.gradient_wand": "Gradient Wands"
+  "itemgroup.gradient_wand": "Gradient Wands",
+
+  "key.gradient_wand.open_menu": "Open Gradient Wand Menu",
+  "category.gradient_wand": "Gradient Wand"
 }

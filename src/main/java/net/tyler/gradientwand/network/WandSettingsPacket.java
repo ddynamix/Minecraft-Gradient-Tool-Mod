@@ -1,0 +1,57 @@
+package net.tyler.gradientwand.network;
+
+import net.fabricmc.fabric.api.networking.v1.FabricPacket;
+import net.fabricmc.fabric.api.networking.v1.PacketType;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.item.ItemStack;
+import net.minecraft.network.PacketByteBuf;
+import net.tyler.gradientwand.GradientWand;
+import net.tyler.gradientwand.item.custom.GradientWandItem;
+import net.tyler.gradientwand.item.custom.WandSettings;
+
+// Client to server: "set my wand to these settings". The seed is deliberately not included.
+public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAxis axis,
+                                 WandSettings.Dither dither, float jitter) implements FabricPacket {
+
+    public static final PacketType<WandSettingsPacket> TYPE =
+            PacketType.create(GradientWand.id("wand_settings"), WandSettingsPacket::new);
+
+    public WandSettingsPacket(PacketByteBuf buf) {
+        this(buf.readEnumConstant(WandSettings.Mode.class),
+                buf.readEnumConstant(WandSettings.GradientAxis.class),
+                buf.readEnumConstant(WandSettings.Dither.class),
+                buf.readFloat());
+    }
+
+    @Override
+    public void write(PacketByteBuf buf) {
+        buf.writeEnumConstant(mode);
+        buf.writeEnumConstant(axis);
+        buf.writeEnumConstant(dither);
+        buf.writeFloat(jitter);
+    }
+
+    @Override
+    public PacketType<?> getType() {
+        return TYPE;
+    }
+
+    public static void registerReceiver() {
+        // Fabric runs this on the main server thread, so touching the stack here is safe
+        ServerPlayNetworking.registerGlobalReceiver(TYPE, (packet, player, responseSender) -> {
+            ItemStack stack = player.getMainHandStack();
+
+            if (!(stack.getItem() instanceof GradientWandItem)) {
+                return;
+            }
+
+            // Never trust the client: keep the server's own seed and clamp what came over the wire
+            WandSettings.from(stack)
+                    .withMode(packet.mode())
+                    .withAxis(packet.axis())
+                    .withDither(packet.dither())
+                    .withJitter(Math.max(0.0f, Math.min(1.0f, packet.jitter())))
+                    .save(stack);
+        });
+    }
+}

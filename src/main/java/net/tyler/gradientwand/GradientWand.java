@@ -8,6 +8,9 @@ import net.tyler.gradientwand.command.GradientWandCommand;
 import net.tyler.gradientwand.item.ModItemGroups;
 import net.tyler.gradientwand.item.ModItems;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
+import net.tyler.gradientwand.network.WandSettingsPacket;
+import net.tyler.gradientwand.network.WandUndoPacket;
+import net.tyler.gradientwand.undo.UndoHistory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,6 +25,9 @@ public class GradientWand implements ModInitializer {
 		ModItemGroups.registerItemGroups();
 		GradientWandItem.registerCancelOnAttack();
 		GradientWandCommand.register();
+		WandSettingsPacket.registerReceiver();
+		WandUndoPacket.registerReceiver();
+		UndoHistory.registerCleanup();
 	}
 
 	public static Identifier id(String path) {

@@ -10,7 +10,7 @@ public record WandSettings(Mode mode, GradientAxis axis, Dither dither, float ji
     }
 
     public enum GradientAxis {
-        AUTO, X, Y, Z
+        AUTO, HORIZONTAL, VERTICAL
     }
 
     public enum Dither {
