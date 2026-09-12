@@ -1,5 +1,6 @@
 package net.tyler.gradientwand.item.custom;
 
+import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.item.TooltipContext;
 import net.minecraft.entity.player.PlayerEntity;
@@ -18,6 +19,7 @@ import net.minecraft.util.TypedActionResult;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
 
 import java.util.ArrayList;
@@ -26,6 +28,7 @@ import java.util.List;
 public class GradientWandItem extends Item {
 
     private static final String POINT_A_KEY = "PointA";
+
 
     // How far the wand reaches when you right-click the air
     private static final double AIR_RANGE = 16.0;
@@ -44,6 +47,23 @@ public class GradientWandItem extends Item {
         super(settings);
     }
 
+    // Left-clicking with the wand clears the selection instead of breaking the block
+    public static void registerCancelOnAttack() {
+        AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> {
+            ItemStack stack = player.getStackInHand(hand);
+
+            if (!(stack.getItem() instanceof GradientWandItem)) {
+                return ActionResult.PASS;
+            }
+
+            if (!world.isClient()) {
+                cancelSelection(player, stack);
+            }
+
+            return ActionResult.SUCCESS;
+        });
+    }
+
     @Override
     public ActionResult useOnBlock(ItemUsageContext context) {
         World world = context.getWorld();
@@ -52,11 +72,7 @@ public class GradientWandItem extends Item {
         if (!world.isClient() && player != null) {
             ItemStack stack = context.getStack();
 
-            if (player.isSneaking()) {
-                cancelSelection(player, stack);
-            } else {
-                handleClick(player, stack, context.getBlockPos().offset(context.getSide()));
-            }
+            handleClick(player, stack, context.getBlockPos().offset(context.getSide()));
         }
 
         return ActionResult.success(world.isClient());
@@ -67,9 +83,7 @@ public class GradientWandItem extends Item {
         ItemStack stack = user.getStackInHand(hand);
 
         if (!world.isClient()) {
-            if (user.isSneaking()) {
-                cancelSelection(user, stack);
-            } else if (getPointA(stack) == null) {
+            if (getPointA(stack) == null) {
                 user.sendMessage(Text.literal("Right-click a block to set point A first"), true);
             } else {
                 handleClick(user, stack, raycastForPoint(user));
@@ -91,6 +105,8 @@ public class GradientWandItem extends Item {
 
         if (pointA != null) {
             tooltip.add(Text.literal("Point A: " + pointA.toShortString()).formatted(Formatting.AQUA));
+            tooltip.add(Text.literal("Sneak to lock to one axis").formatted(Formatting.DARK_GRAY));
+            tooltip.add(Text.literal("Left-click to cancel").formatted(Formatting.DARK_GRAY));
         } else {
             tooltip.add(Text.literal("Right-click a block to set point A").formatted(Formatting.GRAY));
         }
@@ -154,7 +170,16 @@ public class GradientWandItem extends Item {
             return; // keep point A so you can fix your hotbar and click again
         }
 
-        int count = blocksInLine(pointA, pos);
+        BlockPos end = pos;
+        String note = "";
+
+        if (player.isSneaking()) {
+            Direction.Axis axis = dominantAxis(pointA, pos);
+            end = snapToAxis(pointA, pos, axis);
+            note = " locked to " + axis.asString().toUpperCase();
+        }
+
+        int count = blocksInLine(pointA, end);
 
         if (count > MAX_BLOCKS) {
             player.sendMessage(Text.literal("That line is " + count + " blocks long, max is " + MAX_BLOCKS)
@@ -162,9 +187,9 @@ public class GradientWandItem extends Item {
             return; // keep point A
         }
 
-        int placed = drawGradient(player, pointA, pos, palette);
+        int placed = drawGradient(player, pointA, end, palette);
 
-        player.sendMessage(Text.literal("Placed " + placed + " of " + count + " blocks"), true);
+        player.sendMessage(Text.literal("Placed " + placed + " of " + count + " blocks" + note), true);
 
         clearPointA(stack);
     }
@@ -221,5 +246,31 @@ public class GradientWandItem extends Item {
 
     private static void clearPointA(ItemStack stack) {
         stack.removeSubNbt(POINT_A_KEY);
+    }
+
+    // Which axis the two points are furthest apart on
+    private static Direction.Axis dominantAxis(BlockPos from, BlockPos to) {
+        int dx = Math.abs(to.getX() - from.getX());
+        int dy = Math.abs(to.getY() - from.getY());
+        int dz = Math.abs(to.getZ() - from.getZ());
+
+        if (dx >= dy && dx >= dz) {
+            return Direction.Axis.X;
+        }
+
+        if (dy >= dz) {
+            return Direction.Axis.Y;
+        }
+
+        return Direction.Axis.Z;
+    }
+
+    // Keeps the end point's coordinate on one axis and takes the other two from the start
+    private static BlockPos snapToAxis(BlockPos from, BlockPos to, Direction.Axis axis) {
+        return switch (axis) {
+            case X -> new BlockPos(to.getX(), from.getY(), from.getZ());
+            case Y -> new BlockPos(from.getX(), to.getY(), from.getZ());
+            case Z -> new BlockPos(from.getX(), from.getY(), to.getZ());
+        };
     }
 }

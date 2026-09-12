@@ -6,6 +6,7 @@ import net.minecraft.util.Identifier;
 
 import net.tyler.gradientwand.item.ModItemGroups;
 import net.tyler.gradientwand.item.ModItems;
+import net.tyler.gradientwand.item.custom.GradientWandItem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,6 +19,7 @@ public class GradientWand implements ModInitializer {
 		LOGGER.info("Hello Fabric world!");
 		ModItems.registerModItems();
 		ModItemGroups.registerItemGroups();
+		GradientWandItem.registerCancelOnAttack();
 	}
 
 	public static Identifier id(String path) {
