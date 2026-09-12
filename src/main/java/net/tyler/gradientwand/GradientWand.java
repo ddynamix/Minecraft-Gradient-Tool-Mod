@@ -4,6 +4,7 @@ import net.fabricmc.api.ModInitializer;
 
 import net.minecraft.util.Identifier;
 
+import net.tyler.gradientwand.animation.PlacementQueue;
 import net.tyler.gradientwand.command.GradientWandCommand;
 import net.tyler.gradientwand.item.ModItemGroups;
 import net.tyler.gradientwand.item.ModItems;
@@ -30,6 +31,8 @@ public class GradientWand implements ModInitializer {
 		WandUndoPacket.registerReceiver();
 		UndoHistory.registerCleanup();
 		WandCancelPacket.registerReceiver();
+		UndoHistory.registerCleanup();
+		PlacementQueue.register();
 	}
 
 	public static Identifier id(String path) {

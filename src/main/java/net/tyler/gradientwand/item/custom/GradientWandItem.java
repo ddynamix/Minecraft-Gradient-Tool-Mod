@@ -1,7 +1,6 @@
 package net.tyler.gradientwand.item.custom;
 
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
-import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.item.TooltipContext;
 import net.minecraft.entity.player.PlayerEntity;
@@ -23,7 +22,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
 import net.tyler.gradientwand.cost.MaterialCost;
-import net.tyler.gradientwand.undo.UndoHistory;
+import net.tyler.gradientwand.animation.PlacementQueue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -395,24 +394,6 @@ public class GradientWandItem extends Item {
         return free;
     }
 
-    // Places an already filtered list and reports what changed, so it can be undone
-    private static List<UndoHistory.Change> place(PlayerEntity player, List<PlannedBlock> planned) {
-        World world = player.getWorld();
-        List<UndoHistory.Change> changes = new ArrayList<>();
-
-        for (PlannedBlock block : planned) {
-            BlockPos pos = block.pos();
-            BlockState before = world.getBlockState(pos);
-
-            // NOTIFY_LISTENERS updates clients but skips per-block neighbour and light updates
-            if (world.setBlockState(pos, block.state(), Block.NOTIFY_LISTENERS)) {
-                changes.add(new UndoHistory.Change(pos, before, block.state()));
-            }
-        }
-
-        return changes;
-    }
-
     private static void handleClick(PlayerEntity player, ItemStack stack, BlockPos pos) {
         BlockPos pointA = getPointA(stack);
 
@@ -450,8 +431,11 @@ public class GradientWandItem extends Item {
         List<PlannedBlock> planned = plan(new GradientRequest(pointA, end, palette, settings));
         List<PlannedBlock> free = placeable(player, planned);
 
+        // Recorded now, not at the end: switching game mode mid wave must not change who pays
+        boolean paid = !player.isCreative();
+
         // Creative players never pay, and never see the shortage list
-        if (!player.isCreative()) {
+        if (paid) {
             Map<Item, Integer> needed = MaterialCost.required(free);
             Map<Item, Integer> held = MaterialCost.available(player);
 
@@ -464,11 +448,8 @@ public class GradientWandItem extends Item {
             MaterialCost.consume(player, needed);
         }
 
-        List<UndoHistory.Change> changes = place(player, free);
-
-        UndoHistory.record(player, changes);
-
-        player.sendMessage(Text.literal("Placed " + changes.size() + " of " + planned.size() + " blocks"), true);
+        // The wave places them over the next few ticks, and reports when it finishes
+        PlacementQueue.start(player, pointA, free, paid);
 
         clearPointA(stack);
     }
