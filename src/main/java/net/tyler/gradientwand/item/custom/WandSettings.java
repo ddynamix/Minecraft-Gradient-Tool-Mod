@@ -18,7 +18,7 @@ public record WandSettings(Mode mode, GradientAxis axis, Dither dither, float ji
     }
 
     public static final WandSettings DEFAULT =
-            new WandSettings(Mode.STRIP, GradientAxis.AUTO, Dither.NONE, 0.0f, 0L);
+            new WandSettings(Mode.STRIP, GradientAxis.AUTO, Dither.NONE, 1.0f, 0L);
 
     private static final String KEY = "Settings";
 
@@ -30,7 +30,9 @@ public record WandSettings(Mode mode, GradientAxis axis, Dither dither, float ji
             return DEFAULT;
         }
 
-        float jitter = Math.max(0.0f, Math.min(1.0f, nbt.getFloat("Jitter")));
+        float jitter = nbt.contains("Jitter")
+                ? Math.max(0.0f, Math.min(1.0f, nbt.getFloat("Jitter")))
+                : DEFAULT.jitter();
 
         return new WandSettings(
                 readEnum(nbt, "Mode", Mode.class, DEFAULT.mode()),

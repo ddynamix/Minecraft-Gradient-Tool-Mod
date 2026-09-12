@@ -126,8 +126,59 @@ public class GradientWandItem extends Item {
     public record PlannedBlock(BlockPos pos, BlockState state) {
     }
 
+    // A spread ordering of the 64 cells in a 4x4x4 block, so neighbouring positions get very
+    // different thresholds. Built by greedy maximum-distance placement and then measured: no
+    // axis-aligned plane is all-low or all-high, which is the artefact that shows up as banding.
+    private static final int[] DITHER_4 = {
+            0, 16, 24, 18, 36, 40,  2, 42,  4, 20, 26, 22, 38, 44,  6, 46,
+            28,  8, 30, 10, 48, 56, 50, 58, 32, 12, 34, 14, 52, 60, 54, 62,
+            27, 23,  5, 21,  7, 47, 39, 45, 25, 19,  1, 17,  3, 43, 37, 41,
+            35, 15, 33, 13, 55, 63, 53, 61, 31, 11, 29,  9, 51, 59, 49, 57
+    };
+
+    // Which palette entry a position gets. With dither off this is exactly the integer division
+    // from Step 5. With it on, a position part way between two entries sometimes takes the next.
+    private static BlockState pick(List<BlockState> palette, int along, int count,
+                                   BlockPos pos, WandSettings settings) {
+        float exact = (float) along * palette.size() / count;
+        int band = (int) exact;
+
+        if (settings.dither() != WandSettings.Dither.NONE && settings.jitter() > 0.0f) {
+            float threshold = settings.dither() == WandSettings.Dither.ORDERED
+                    ? orderedThreshold(pos)
+                    : randomThreshold(settings.seed(), pos);
+
+            if (threshold < (exact - band) * settings.jitter()) {
+                band++;
+            }
+        }
+
+        return palette.get(Math.min(band, palette.size() - 1));
+    }
+
+    // Regular repeating pattern, needs no seed and looks the same on every machine.
+    // "& 3" is the low two bits, which is the right answer for negative coordinates too.
+    private static float orderedThreshold(BlockPos pos) {
+        int index = ((pos.getX() & 3) << 4) | ((pos.getY() & 3) << 2) | (pos.getZ() & 3);
+
+        return (DITHER_4[index] + 0.5f) / 64.0f;
+    }
+
+    // A hash, not a random number generator. The same position and seed always give the same
+    // value, which is what keeps the preview steady and identical to what gets placed.
+    private static float randomThreshold(long seed, BlockPos pos) {
+        long h = (seed * 0xD6E8FEB86659FD93L) ^ (pos.asLong() * 0x9E3779B97F4A7C15L);
+
+        h ^= h >>> 33;
+        h *= 0xFF51AFD7ED558CCDL;
+        h ^= h >>> 33;
+
+        return (h >>> 40) / (float) (1 << 24);
+    }
+
     // Every block this gradient would place, from point A to point B. Pure maths, no world access.
-    private static List<PlannedBlock> planLine(BlockPos from, BlockPos to, List<BlockState> palette) {
+    private static List<PlannedBlock> planLine(BlockPos from, BlockPos to,
+                                               List<BlockState> palette, WandSettings settings) {
         int dx = to.getX() - from.getX();
         int dy = to.getY() - from.getY();
         int dz = to.getZ() - from.getZ();
@@ -145,7 +196,7 @@ public class GradientWandItem extends Item {
                     from.getY() + (int) Math.round(t * dy),
                     from.getZ() + (int) Math.round(t * dz));
 
-            planned.add(new PlannedBlock(pos, palette.get(i * palette.size() / count)));
+            planned.add(new PlannedBlock(pos, pick(palette, i, count, pos, settings)));
         }
 
         return planned;
@@ -185,10 +236,11 @@ public class GradientWandItem extends Item {
     public static List<PlannedBlock> plan(GradientRequest request) {
         if (request.settings().mode() == WandSettings.Mode.WALL) {
             return fillBetween(request.from(), request.to(), request.palette(),
-                    resolveGradientAxis(request.settings().axis(), request.from(), request.to()));
+                    resolveGradientAxis(request.settings().axis(), request.from(), request.to()),
+                    request.settings());
         }
 
-        return planLine(request.from(), request.to(), request.palette());
+        return planLine(request.from(), request.to(), request.palette(), request.settings());
     }
 
     // Where point B ends up once the mode and sneaking have had their say. The preview and the
@@ -262,8 +314,8 @@ public class GradientWandItem extends Item {
     }
 
     // Fills every position between the two corners, the gradient running along one axis
-    private static List<PlannedBlock> fillBetween(BlockPos from, BlockPos to,
-                                                  List<BlockState> palette, Direction.Axis axis) {
+    private static List<PlannedBlock> fillBetween(BlockPos from, BlockPos to, List<BlockState> palette,
+                                                  Direction.Axis axis, WandSettings settings) {
         int minX = Math.min(from.getX(), to.getX());
         int minY = Math.min(from.getY(), to.getY());
         int minZ = Math.min(from.getZ(), to.getZ());
@@ -289,9 +341,10 @@ public class GradientWandItem extends Item {
                         case Y -> y;
                         case Z -> z;
                     };
+                    BlockPos pos = new BlockPos(x, y, z);
 
-                    planned.add(new PlannedBlock(new BlockPos(x, y, z),
-                            palette.get((coordinate - start) * palette.size() / count)));
+                    planned.add(new PlannedBlock(pos,
+                            pick(palette, coordinate - start, count, pos, settings)));
                 }
             }
         }
