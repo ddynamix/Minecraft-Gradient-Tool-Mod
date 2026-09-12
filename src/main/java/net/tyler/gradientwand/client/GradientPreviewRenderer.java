@@ -20,6 +20,11 @@ public class GradientPreviewRenderer {
     private static final float ALPHA = 0.9f;
     private static final double GROW = 0.002;
 
+    // Client-only state. Rebuilding a box plan every frame would be wasteful, so it is cached
+    // until something the plan depends on changes.
+    private static GradientWandItem.GradientRequest cachedRequest;
+    private static List<GradientWandItem.PlannedBlock> cachedPlan = List.of();
+
     public static void register() {
         WorldRenderEvents.AFTER_ENTITIES.register(GradientPreviewRenderer::render);
     }
@@ -37,10 +42,17 @@ public class GradientPreviewRenderer {
             return;
         }
 
-        List<GradientWandItem.PlannedBlock> planned = GradientWandItem.previewFor(player, stack);
+        GradientWandItem.GradientRequest request = GradientWandItem.requestFor(player, stack);
 
-        if (planned.isEmpty()) {
+        if (request == null) {
+            cachedRequest = null;
+            cachedPlan = List.of();
             return;
+        }
+
+        if (!request.equals(cachedRequest)) {
+            cachedRequest = request;
+            cachedPlan = GradientWandItem.plan(request);
         }
 
         MatrixStack matrices = context.matrixStack();
@@ -50,7 +62,7 @@ public class GradientPreviewRenderer {
         matrices.push();
         matrices.translate(-camera.x, -camera.y, -camera.z);
 
-        for (GradientWandItem.PlannedBlock block : planned) {
+        for (GradientWandItem.PlannedBlock block : cachedPlan) {
             BlockPos pos = block.pos();
 
             if (!context.world().getBlockState(pos).isReplaceable()) {

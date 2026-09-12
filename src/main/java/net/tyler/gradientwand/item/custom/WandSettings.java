@@ -6,7 +6,7 @@ import net.minecraft.nbt.NbtCompound;
 public record WandSettings(Mode mode, GradientAxis axis, Dither dither, float jitter, long seed) {
 
     public enum Mode {
-        LINE, BOX
+        STRIP, WALL
     }
 
     public enum GradientAxis {
@@ -18,7 +18,7 @@ public record WandSettings(Mode mode, GradientAxis axis, Dither dither, float ji
     }
 
     public static final WandSettings DEFAULT =
-            new WandSettings(Mode.LINE, GradientAxis.AUTO, Dither.NONE, 0.0f, 0L);
+            new WandSettings(Mode.STRIP, GradientAxis.AUTO, Dither.NONE, 0.0f, 0L);
 
     private static final String KEY = "Settings";
 

@@ -1,6 +1,7 @@
 package net.tyler.gradientwand.item.custom;
 
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
+import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.item.TooltipContext;
 import net.minecraft.entity.player.PlayerEntity;
@@ -32,6 +33,8 @@ public class GradientWandItem extends Item {
     private static final double AIR_RANGE = 16.0;
     // Safety net so a mis-click cannot try to fill thousands of blocks
     private static final int MAX_BLOCKS = 512;
+    // Walls cover far more ground than strips, so they get their own cap
+    private static final int MAX_WALL_BLOCKS = 4096;
     // How many blocks a line from one point to the other needs
     private static int blocksInLine(BlockPos from, BlockPos to) {
         int dx = Math.abs(to.getX() - from.getX());
@@ -148,42 +151,186 @@ public class GradientWandItem extends Item {
         return planned;
     }
 
-    public static List<PlannedBlock> previewFor(PlayerEntity player, ItemStack stack) {
+    // Everything needed to work out one gradient. Being a record gives us equals() for free,
+    // which is what lets the preview cache tell when nothing has changed.
+    public record GradientRequest(BlockPos from, BlockPos to, List<BlockState> palette, WandSettings settings) {
+    }
+
+    // What the wand would do if you clicked right now, or null when there is nothing to show
+    public static GradientRequest requestFor(PlayerEntity player, ItemStack stack) {
         BlockPos from = getPointA(stack);
 
         if (from == null) {
-            return List.of();
+            return null;
         }
 
         List<BlockState> palette = readPalette(player);
 
         if (palette.isEmpty()) {
-            return List.of();
+            return null;
         }
+
+        WandSettings settings = WandSettings.from(stack);
 
         BlockPos raw = raycastForPoint(player);
-        BlockPos to = player.isSneaking() ? snapToAxis(from, raw, dominantAxis(from, raw)) : raw;
+        BlockPos to = resolveEnd(player, from, raw, settings);
 
-        if (blocksInLine(from, to) > MAX_BLOCKS) {
-            return List.of();
+        if (sizeOf(from, to, settings) > maxFor(settings)) {
+            return null;
         }
 
-        return planLine(from, to, palette);
+        return new GradientRequest(from, to, palette, settings);
+    }
+
+    public static List<PlannedBlock> plan(GradientRequest request) {
+        if (request.settings().mode() == WandSettings.Mode.WALL) {
+            return fillBetween(request.from(), request.to(), request.palette(),
+                    resolveGradientAxis(request.settings().axis(), request.from(), request.to()));
+        }
+
+        return planLine(request.from(), request.to(), request.palette());
+    }
+
+    // Where point B ends up once the mode and sneaking have had their say. The preview and the
+    // click both go through here, so the two can never disagree.
+    public static BlockPos resolveEnd(PlayerEntity player, BlockPos from, BlockPos raw, WandSettings settings) {
+        if (settings.mode() == WandSettings.Mode.WALL) {
+            return flatten(from, raw, wallNormal(from, raw, player.isSneaking()));
+        }
+
+        if (player.isSneaking()) {
+            return snapToAxis(from, raw, dominantAxis(from, raw));
+        }
+
+        return raw;
+    }
+
+    // Which axis gets squashed to a single block thick
+    private static Direction.Axis wallNormal(BlockPos from, BlockPos to, boolean upright) {
+        int dx = Math.abs(to.getX() - from.getX());
+        int dy = Math.abs(to.getY() - from.getY());
+        int dz = Math.abs(to.getZ() - from.getZ());
+
+        // Sneaking keeps Y inside the wall, so the wall always stands upright
+        if (upright) {
+            return dx <= dz ? Direction.Axis.X : Direction.Axis.Z;
+        }
+
+        if (dx <= dy && dx <= dz) {
+            return Direction.Axis.X;
+        }
+
+        if (dy <= dz) {
+            return Direction.Axis.Y;
+        }
+
+        return Direction.Axis.Z;
+    }
+
+    // Collapses one axis, turning the selection into a flat rectangle
+    private static BlockPos flatten(BlockPos from, BlockPos to, Direction.Axis normal) {
+        return switch (normal) {
+            case X -> new BlockPos(from.getX(), to.getY(), to.getZ());
+            case Y -> new BlockPos(to.getX(), from.getY(), to.getZ());
+            case Z -> new BlockPos(to.getX(), to.getY(), from.getZ());
+        };
+    }
+
+    // AUTO means the longer side of the wall. An axis pointing straight through the wall would
+    // give every block the same colour, so that falls back to AUTO as well.
+    private static Direction.Axis resolveGradientAxis(WandSettings.GradientAxis choice, BlockPos from, BlockPos to) {
+        Direction.Axis requested = switch (choice) {
+            case X -> Direction.Axis.X;
+            case Y -> Direction.Axis.Y;
+            case Z -> Direction.Axis.Z;
+            case AUTO -> null;
+        };
+
+        if (requested != null && sizeAlong(from, to, requested) > 1) {
+            return requested;
+        }
+
+        return dominantAxis(from, to);
+    }
+
+    private static int sizeAlong(BlockPos from, BlockPos to, Direction.Axis axis) {
+        return switch (axis) {
+            case X -> Math.abs(to.getX() - from.getX()) + 1;
+            case Y -> Math.abs(to.getY() - from.getY()) + 1;
+            case Z -> Math.abs(to.getZ() - from.getZ()) + 1;
+        };
+    }
+
+    // Fills every position between the two corners, the gradient running along one axis
+    private static List<PlannedBlock> fillBetween(BlockPos from, BlockPos to,
+                                                  List<BlockState> palette, Direction.Axis axis) {
+        int minX = Math.min(from.getX(), to.getX());
+        int minY = Math.min(from.getY(), to.getY());
+        int minZ = Math.min(from.getZ(), to.getZ());
+        int maxX = Math.max(from.getX(), to.getX());
+        int maxY = Math.max(from.getY(), to.getY());
+        int maxZ = Math.max(from.getZ(), to.getZ());
+
+        int start = switch (axis) {
+            case X -> minX;
+            case Y -> minY;
+            case Z -> minZ;
+        };
+
+        int count = sizeAlong(from, to, axis);
+
+        List<PlannedBlock> planned = new ArrayList<>();
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    int coordinate = switch (axis) {
+                        case X -> x;
+                        case Y -> y;
+                        case Z -> z;
+                    };
+
+                    planned.add(new PlannedBlock(new BlockPos(x, y, z),
+                            palette.get((coordinate - start) * palette.size() / count)));
+                }
+            }
+        }
+
+        return planned;
+    }
+    // long, not int: a 1300 block cube already overflows an int
+    private static long blocksInBox(BlockPos from, BlockPos to) {
+        long sizeX = Math.abs(to.getX() - from.getX()) + 1L;
+        long sizeY = Math.abs(to.getY() - from.getY()) + 1L;
+        long sizeZ = Math.abs(to.getZ() - from.getZ()) + 1L;
+
+        return sizeX * sizeY * sizeZ;
+    }
+
+    private static long sizeOf(BlockPos from, BlockPos to, WandSettings settings) {
+        return settings.mode() == WandSettings.Mode.WALL
+                ? blocksInBox(from, to)
+                : blocksInLine(from, to);
+    }
+
+    private static long maxFor(WandSettings settings) {
+        return settings.mode() == WandSettings.Mode.WALL ? MAX_WALL_BLOCKS : MAX_BLOCKS;
     }
 
     // Places the planned blocks, skipping spots that are not free
-    private static int drawGradient(PlayerEntity player, BlockPos from, BlockPos to, List<BlockState> palette) {
+    private static int place(PlayerEntity player, List<PlannedBlock> planned) {
         World world = player.getWorld();
         int placed = 0;
 
-        for (PlannedBlock block : planLine(from, to, palette)) {
+        for (PlannedBlock block : planned) {
             BlockPos pos = block.pos();
 
             if (!world.getBlockState(pos).isReplaceable() || !world.canPlayerModifyAt(player, pos)) {
                 continue;
             }
 
-            if (world.setBlockState(pos, block.state())) {
+            // NOTIFY_LISTENERS updates clients but skips per-block neighbour and light updates
+            if (world.setBlockState(pos, block.state(), Block.NOTIFY_LISTENERS)) {
                 placed++;
             }
         }
@@ -213,26 +360,20 @@ public class GradientWandItem extends Item {
             return; // keep point A so you can fix your hotbar and click again
         }
 
-        BlockPos end = pos;
-        String note = "";
+        WandSettings settings = WandSettings.from(stack);
+        BlockPos end = resolveEnd(player, pointA, pos, settings);
+        long size = sizeOf(pointA, end, settings);
 
-        if (player.isSneaking()) {
-            Direction.Axis axis = dominantAxis(pointA, pos);
-            end = snapToAxis(pointA, pos, axis);
-            note = " locked to " + axis.asString().toUpperCase();
-        }
-
-        int count = blocksInLine(pointA, end);
-
-        if (count > MAX_BLOCKS) {
-            player.sendMessage(Text.literal("That line is " + count + " blocks long, max is " + MAX_BLOCKS)
+        if (size > maxFor(settings)) {
+            player.sendMessage(Text.literal("That selection is " + size + " blocks, max is " + maxFor(settings))
                     .formatted(Formatting.RED), true);
             return; // keep point A
         }
 
-        int placed = drawGradient(player, pointA, end, palette);
+        List<PlannedBlock> planned = plan(new GradientRequest(pointA, end, palette, settings));
+        int placed = place(player, planned);
 
-        player.sendMessage(Text.literal("Placed " + placed + " of " + count + " blocks" + note), true);
+        player.sendMessage(Text.literal("Placed " + placed + " of " + planned.size() + " blocks"), true);
 
         clearPointA(stack);
     }
