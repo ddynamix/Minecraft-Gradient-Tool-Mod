@@ -54,6 +54,14 @@ public class GradientWandItem extends Item {
         return tier;
     }
 
+    // Item returns 0 here by default, which is what stops a plain Item being enchanted at a table.
+    // Everything else about Unbreaking and Mending already works: both target BREAKABLE, which
+    // accepts any item with a durability bar, and ItemStack.damage applies Unbreaking itself.
+    @Override
+    public int getEnchantability() {
+        return tier.enchantability();
+    }
+
     // The wand never breaks blocks. Cancelling is handled client side instead, so that it works
     // when you are aiming at open air, which is the normal case once a preview is on screen.
     public static void registerNoBlockBreaking() {

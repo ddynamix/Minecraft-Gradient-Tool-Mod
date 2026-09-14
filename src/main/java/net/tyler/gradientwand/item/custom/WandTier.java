@@ -6,26 +6,31 @@ import net.minecraft.item.ItemStack;
 // out at all, which is how vanilla marks an item as not damageable.
 public enum WandTier {
 
-    WOOD("wooden", "Wooden", 128, 16, 3),
-    STONE("stone", "Stone", 256, 32, 5),
-    COPPER("copper", "Copper", 312, 64, 5),
-    IRON("iron", "Iron", 512, 128, 7),
-    GOLD("gold", "Gold", 128, 128, 16),
-    DIAMOND("diamond", "Diamond", 2056, 256, 32),
-    NETHERITE("netherite", "Netherite", 0, 4096, 128);
+    // Enchantability is taken straight from the matching vanilla tool material, so a wand behaves
+    // at the table the way a player already expects that metal to. Copper has no vanilla tool, so
+    // it sits between stone and diamond.
+    WOOD("wooden", "Wooden", 128, 16, 3, 15),
+    STONE("stone", "Stone", 256, 32, 5, 5),
+    COPPER("copper", "Copper", 312, 64, 5, 8),
+    IRON("iron", "Iron", 512, 128, 7, 14),
+    GOLD("gold", "Gold", 128, 128, 16, 22),
+    DIAMOND("diamond", "Diamond", 2056, 256, 32, 10),
+    NETHERITE("netherite", "Netherite", 0, 4096, 128, 0);
 
     private final String name;
     private final String label;
     private final int durability;
     private final int maxBlocks;
     private final int maxWidth;
+    private final int enchantability;
 
-    WandTier(String name, String label, int durability, int maxBlocks, int maxWidth) {
+    WandTier(String name, String label, int durability, int maxBlocks, int maxWidth, int enchantability) {
         this.name = name;
         this.label = label;
         this.durability = durability;
         this.maxBlocks = maxBlocks;
         this.maxWidth = maxWidth;
+        this.enchantability = enchantability;
     }
 
     // wooden_gradient_wand, stone_gradient_wand, and so on
@@ -52,6 +57,12 @@ public enum WandTier {
 
     public int maxWidth() {
         return maxWidth;
+    }
+
+    // Zero means an enchanting table will not offer anything, which is what the netherite wand
+    // wants: it never takes damage, so Unbreaking and Mending would do nothing for it.
+    public int enchantability() {
+        return enchantability;
     }
 
     public boolean unbreakable() {
