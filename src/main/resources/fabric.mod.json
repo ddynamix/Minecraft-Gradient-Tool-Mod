@@ -12,7 +12,7 @@
 		"sources": "https://github.com/ddynamix/Minecraft-Gradient-Tool-Mod"
 	},
 	"license": "MIT",
-	"icon": "assets/gradient-wand/icon.png",
+	"icon": "assets/gradient_wand/icon.png",
 	"environment": "*",
 	"entrypoints": {
 		"main": [
