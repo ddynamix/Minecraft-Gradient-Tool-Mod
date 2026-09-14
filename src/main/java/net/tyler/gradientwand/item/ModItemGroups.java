@@ -8,17 +8,19 @@ import net.minecraft.registry.Registry;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.tyler.gradientwand.GradientWand;
+import net.tyler.gradientwand.item.custom.WandTier;
 
 public class ModItemGroups {
 
     public static final ItemGroup GRADIENT_WAND_GROUP = Registry.register(Registries.ITEM_GROUP, new Identifier(
             GradientWand.MOD_ID, "gradient_wand"),
             FabricItemGroup.builder().displayName(Text.translatable("itemgroup.gradient_wand"))
-                    .icon(() -> new ItemStack(ModItems.GRADIENT_WAND)).entries((displayContext, entries) ->
+                    .icon(() -> new ItemStack(ModItems.of(WandTier.NETHERITE))).entries((displayContext, entries) ->
                     {
-                        entries.add(ModItems.GRADIENT_WAND);
-
-                        // add more items to groups here
+                        // Enum order is tier order, so the tab reads wood through netherite
+                        for (WandTier tier : WandTier.values()) {
+                            entries.add(ModItems.of(tier));
+                        }
                     }).build());
 
     public static void registerItemGroups() {

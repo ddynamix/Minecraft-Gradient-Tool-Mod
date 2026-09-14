@@ -6,7 +6,7 @@
       "item": "minecraft:stick"
     },
     "M": {
-      "item": "minecraft:iron_ingot"
+      "tag": "minecraft:stone_tool_materials"
     }
   },
   "pattern": [
@@ -15,6 +15,6 @@
     " S "
   ],
   "result": {
-    "item": "gradient_wand:iron_gradient_wand"
+    "item": "gradient_wand:stone_gradient_wand"
   }
 }

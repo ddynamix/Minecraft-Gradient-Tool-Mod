@@ -1,6 +1,6 @@
 {
   "parent": "item/handheld",
   "textures": {
-    "layer0": "gradient_wand:item/netherite_wand"
+    "layer0": "gradient_wand:item/copper_wand"
   }
 }

@@ -6,7 +6,7 @@
       "item": "minecraft:stick"
     },
     "M": {
-      "item": "minecraft:iron_ingot"
+      "item": "minecraft:gold_ingot"
     }
   },
   "pattern": [
@@ -15,6 +15,6 @@
     " S "
   ],
   "result": {
-    "item": "gradient_wand:iron_gradient_wand"
+    "item": "gradient_wand:gold_gradient_wand"
   }
 }

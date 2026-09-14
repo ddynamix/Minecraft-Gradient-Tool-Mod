@@ -4,9 +4,12 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
 import net.minecraft.sound.BlockSoundGroup;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
+import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.tyler.gradientwand.cost.MaterialCost;
@@ -34,6 +37,8 @@ public class PlacementQueue {
 
         private final PlayerEntity player;
         private final World world;
+        private final ItemStack wand;
+        private final Hand hand;
         private final BlockPos origin;
         private final List<GradientWandItem.PlannedBlock> blocks;
         private final boolean paid;
@@ -42,11 +47,14 @@ public class PlacementQueue {
         private final List<GradientWandItem.PlannedBlock> missed = new ArrayList<>();
 
         private int index;
+        private boolean broken;
 
-        private Animation(PlayerEntity player, BlockPos origin,
+        private Animation(PlayerEntity player, ItemStack wand, Hand hand, BlockPos origin,
                           List<GradientWandItem.PlannedBlock> blocks, boolean paid) {
             this.player = player;
             this.world = player.getWorld();
+            this.wand = wand;
+            this.hand = hand;
             this.origin = origin;
             this.blocks = blocks;
             this.paid = paid;
@@ -58,8 +66,9 @@ public class PlacementQueue {
     }
 
     // "paid" is recorded here rather than checked at the end, so switching game mode part way
-    // through cannot earn free blocks or refund ones that were never charged for.
-    public static void start(PlayerEntity player, BlockPos origin,
+    // through cannot earn free blocks or refund ones that were never charged for. The wand stack
+    // is held by reference, which is what lets a break part way through stop the wave.
+    public static void start(PlayerEntity player, ItemStack wand, Hand hand, BlockPos origin,
                              List<GradientWandItem.PlannedBlock> blocks, boolean paid) {
         if (blocks.isEmpty()) {
             return;
@@ -69,7 +78,7 @@ public class PlacementQueue {
 
         ordered.sort(Comparator.comparingInt(block -> waveDistance(origin, block.pos())));
 
-        ACTIVE.add(new Animation(player, origin, ordered, paid));
+        ACTIVE.add(new Animation(player, wand, hand, origin, ordered, paid));
     }
 
     // Undo pressed while a wave is still travelling: stop it, put back whatever it managed to
@@ -129,7 +138,7 @@ public class PlacementQueue {
 
             advance(animation);
 
-            if (animation.index >= animation.blocks.size()) {
+            if (animation.broken || animation.index >= animation.blocks.size()) {
                 finish(animation);
                 animations.remove();
             }
@@ -140,7 +149,7 @@ public class PlacementQueue {
         int placed = 0;
         int sounds = 0;
 
-        while (animation.index < animation.blocks.size() && placed < BLOCKS_PER_TICK) {
+        while (animation.index < animation.blocks.size() && placed < BLOCKS_PER_TICK && !animation.broken) {
             int distance = waveDistance(animation.origin, animation.blocks.get(animation.index).pos());
 
             // Always finish a whole wavefront, so the diagonal edge stays crisp
@@ -154,6 +163,8 @@ public class PlacementQueue {
                         playPlaceSound(animation.world, block);
                         sounds++;
                     }
+
+                    charge(animation);
                 } else {
                     // Paid for, but the world changed before the wave arrived
                     animation.missed.add(block);
@@ -161,7 +172,24 @@ public class PlacementQueue {
 
                 animation.index++;
                 placed++;
+
+                // A broken wand stops the wave where it stands, part way through a wavefront
+                // and all. Whatever is left gets refunded in finish().
+                if (animation.broken) {
+                    return;
+                }
             }
+        }
+    }
+
+    // One point of durability per block actually placed. Creative players and the netherite wand
+    // both fall out of this for free: damage() ignores creative mode and non-damageable items.
+    private static void charge(Animation animation) {
+        animation.wand.damage(1, animation.player, player -> player.sendToolBreakStatus(animation.hand));
+
+        // Breaking empties the stack, which is the only reliable signal that it is gone
+        if (animation.wand.isEmpty()) {
+            animation.broken = true;
         }
     }
 
@@ -193,11 +221,25 @@ public class PlacementQueue {
     private static void finish(Animation animation) {
         UndoHistory.record(animation.player, animation.changes, animation.paid);
 
+        // Everything the wave never reached was paid for up front, so it comes back. After a wave
+        // that ran to the end the tail is empty and this is exactly the old refund.
+        List<GradientWandItem.PlannedBlock> unplaced = new ArrayList<>(animation.missed);
+
+        for (int i = animation.index; i < animation.blocks.size(); i++) {
+            unplaced.add(animation.blocks.get(i));
+        }
+
         String note = "";
 
-        if (animation.paid && !animation.missed.isEmpty()) {
-            MaterialCost.refund(animation.player, MaterialCost.required(animation.missed));
-            note = ", refunded " + animation.missed.size();
+        if (animation.paid && !unplaced.isEmpty()) {
+            MaterialCost.refund(animation.player, MaterialCost.required(unplaced));
+            note = ", refunded " + unplaced.size();
+        }
+
+        if (animation.broken) {
+            animation.player.sendMessage(Text.literal("Your wand broke after placing "
+                    + animation.changes.size() + " blocks" + note).formatted(Formatting.RED), false);
+            return;
         }
 
         animation.player.sendMessage(Text.literal("Placed " + animation.changes.size()

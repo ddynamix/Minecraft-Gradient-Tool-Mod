@@ -64,10 +64,11 @@ public class GradientWandCommand {
             return 0;
         }
 
-        WandSettings updated = change.apply(WandSettings.from(stack));
-        updated.save(stack);
+        change.apply(WandSettings.from(stack)).save(stack);
 
-        source.sendFeedback(() -> Text.literal("Wand set to " + updated.describe()), false);
+        // Read it back rather than echoing what was asked for: a narrow tier may have clamped the
+        // width on the way in, and the player should see what the wand actually holds
+        source.sendFeedback(() -> Text.literal("Wand set to " + WandSettings.from(stack).describe()), false);
 
         return Command.SINGLE_SUCCESS;
     }

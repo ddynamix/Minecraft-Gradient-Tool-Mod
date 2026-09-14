@@ -1,6 +1,6 @@
 {
 	"schemaVersion": 1,
-	"id": "gradient-wand",
+	"id": "gradient_wand",
 	"version": "${version}",
 	"name": "gradient-wand",
 	"description": "This is the first mod by ddynamix, a gradient tool to help you build.",

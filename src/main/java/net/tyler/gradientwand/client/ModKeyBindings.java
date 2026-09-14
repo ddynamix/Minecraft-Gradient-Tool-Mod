@@ -6,9 +6,9 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.item.ItemStack;
-import net.tyler.gradientwand.GradientWand;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
 import net.tyler.gradientwand.item.custom.WandSettings;
+import net.tyler.gradientwand.item.custom.WandTier;
 import net.tyler.gradientwand.network.WandCancelPacket;
 import org.lwjgl.glfw.GLFW;
 
@@ -37,7 +37,8 @@ public class ModKeyBindings {
             // while, not if: the key can be pressed more than once between ticks
             while (openMenu.wasPressed()) {
                 if (holdingWand) {
-                    client.setScreen(new GradientWandScreen(WandSettings.from(stack)));
+                    client.setScreen(new GradientWandScreen(WandSettings.from(stack),
+                            WandTier.of(stack).maxWidth()));
                 }
             }
 
@@ -45,10 +46,6 @@ public class ModKeyBindings {
 
             // Left click cancels, aimed at a block or at nothing at all
             if (attackDown && !attackWasDown && holdingWand) {
-                // TEMPORARY: delete once the left click behaviour is confirmed
-                GradientWand.LOGGER.info("[wand] attack pressed, attack is bound to {}",
-                        client.options.attackKey.getBoundKeyLocalizedText().getString());
-
                 ClientPlayNetworking.send(new WandCancelPacket());
             }
 

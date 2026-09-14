@@ -23,9 +23,13 @@ public class GradientWandScreen extends Screen {
 
     private WandSettings settings;
 
-    public GradientWandScreen(WandSettings settings) {
+    // The wand's own ribbon limit, so the box cannot be typed past what this tier allows
+    private final int maxWidth;
+
+    public GradientWandScreen(WandSettings settings, int maxWidth) {
         super(Text.literal("Gradient Wand"));
         this.settings = settings;
+        this.maxWidth = maxWidth;
     }
 
     @Override
@@ -51,14 +55,14 @@ public class GradientWandScreen extends Screen {
             TextFieldWidget widthField = new TextFieldWidget(this.textRenderer,
                     x + WIDGET_WIDTH - WIDTH_BOX, y, WIDTH_BOX, WIDGET_HEIGHT, Text.literal("Width"));
 
-            widthField.setMaxLength(2);
+            widthField.setMaxLength(String.valueOf(maxWidth).length());
             widthField.setTextPredicate(text -> text.chars().allMatch(Character::isDigit));
 
             // Set the text before attaching the listener, or opening the screen sends a packet
             widthField.setText(String.valueOf(settings.width()));
             widthField.setChangedListener(text -> {
                 if (!text.isEmpty()) {
-                    apply(settings.withWidth(Integer.parseInt(text)));
+                    apply(settings.withWidth(Math.min(Integer.parseInt(text), maxWidth)));
                 }
             });
 

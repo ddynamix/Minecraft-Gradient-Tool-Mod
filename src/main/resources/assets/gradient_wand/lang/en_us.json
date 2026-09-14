@@ -1,6 +1,14 @@
 {
   "item.gradient_wand.gradient_wand": "Gradient Wand",
 
+  "item.gradient_wand.wooden_gradient_wand": "Wooden Gradient Wand",
+  "item.gradient_wand.stone_gradient_wand": "Stone Gradient Wand",
+  "item.gradient_wand.copper_gradient_wand": "Copper Gradient Wand",
+  "item.gradient_wand.iron_gradient_wand": "Iron Gradient Wand",
+  "item.gradient_wand.gold_gradient_wand": "Gold Gradient Wand",
+  "item.gradient_wand.diamond_gradient_wand": "Diamond Gradient Wand",
+  "item.gradient_wand.netherite_gradient_wand": "Netherite Gradient Wand",
+
   "itemgroup.gradient_wand": "Gradient Wands",
 
   "key.gradient_wand.open_menu": "Open Gradient Wand Menu",

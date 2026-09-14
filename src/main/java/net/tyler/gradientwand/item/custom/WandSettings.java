@@ -7,7 +7,8 @@ public record WandSettings(Mode mode, GradientAxis axis, Dither dither, Grain gr
                            float jitter, int width, long seed) {
 
     public static final int MIN_WIDTH = 1;
-    public static final int MAX_WIDTH = 64;
+    // The widest any tier allows. Each wand clamps further, in from() and save() below.
+    public static final int MAX_WIDTH = 128;
 
     public enum Mode {
         STRIP, WALL, RIBBON
@@ -45,7 +46,10 @@ public record WandSettings(Mode mode, GradientAxis axis, Dither dither, Grain gr
                 ? Math.max(0.0f, Math.min(1.0f, nbt.getFloat("Jitter")))
                 : DEFAULT.jitter();
 
-        int width = nbt.contains("Width") ? clampWidth(nbt.getInt("Width")) : DEFAULT.width();
+        int tierMax = WandTier.of(stack).maxWidth();
+        int width = nbt.contains("Width")
+                ? clampWidth(nbt.getInt("Width"), tierMax)
+                : Math.min(DEFAULT.width(), tierMax);
 
         return new WandSettings(
                 readEnum(nbt, "Mode", Mode.class, DEFAULT.mode()),
@@ -65,12 +69,18 @@ public record WandSettings(Mode mode, GradientAxis axis, Dither dither, Grain gr
         nbt.putString("Dither", dither.name());
         nbt.putString("Grain", grain.name());
         nbt.putFloat("Jitter", jitter);
-        nbt.putInt("Width", width);
+        // Clamped here rather than at every caller: this is the one place settings reach an item,
+        // so a width the tier does not allow can never be stored in the first place
+        nbt.putInt("Width", clampWidth(width, WandTier.of(stack).maxWidth()));
         nbt.putLong("Seed", seed);
     }
 
     public static int clampWidth(int value) {
-        return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, value));
+        return clampWidth(value, MAX_WIDTH);
+    }
+
+    public static int clampWidth(int value, int max) {
+        return Math.max(MIN_WIDTH, Math.min(max, value));
     }
 
     public WandSettings withMode(Mode value) {

@@ -33,10 +33,6 @@ public class GradientWandItem extends Item {
     private static final String POINT_A_KEY = "PointA";
     // How far the wand reaches when you right-click the air
     private static final double AIR_RANGE = 16.0;
-    // Safety net so a mis-click cannot try to fill thousands of blocks
-    private static final int MAX_BLOCKS = 512;
-    // Walls cover far more ground than strips, so they get their own cap
-    private static final int MAX_WALL_BLOCKS = 4096;
     // How many blocks a line from one point to the other needs
     private static int blocksInLine(BlockPos from, BlockPos to) {
         int dx = Math.abs(to.getX() - from.getX());
@@ -46,8 +42,15 @@ public class GradientWandItem extends Item {
         return Math.max(dx, Math.max(dy, dz)) + 1;
     }
 
-    public GradientWandItem(Settings settings) {
+    private final WandTier tier;
+
+    public GradientWandItem(Settings settings, WandTier tier) {
         super(settings);
+        this.tier = tier;
+    }
+
+    public WandTier tier() {
+        return tier;
     }
 
     // The wand never breaks blocks. Cancelling is handled client side instead, so that it works
@@ -72,7 +75,7 @@ public class GradientWandItem extends Item {
         if (!world.isClient() && player != null) {
             ItemStack stack = context.getStack();
 
-            handleClick(player, stack, context.getBlockPos().offset(context.getSide()));
+            handleClick(player, stack, context.getHand(), context.getBlockPos().offset(context.getSide()));
         }
 
         return ActionResult.success(world.isClient());
@@ -86,7 +89,7 @@ public class GradientWandItem extends Item {
             if (getPointA(stack) == null) {
                 user.sendMessage(Text.literal("Right-click a block to set point A first"), true);
             } else {
-                handleClick(user, stack, raycastForPoint(user));
+                handleClick(user, stack, hand, raycastForPoint(user));
             }
         }
 
@@ -111,6 +114,8 @@ public class GradientWandItem extends Item {
             tooltip.add(Text.literal("Right-click a block to set point A").formatted(Formatting.GRAY));
         }
 
+        tooltip.add(Text.literal(tier.label() + ": up to " + tier.maxBlocks() + " blocks, width up to "
+                + tier.maxWidth()).formatted(Formatting.DARK_GRAY));
         tooltip.add(Text.literal(WandSettings.from(stack).describe()).formatted(Formatting.DARK_GRAY));
         super.appendTooltip(stack, world, tooltip, context);
     }
@@ -450,9 +455,11 @@ public class GradientWandItem extends Item {
         WandSettings settings = WandSettings.from(stack);
 
         BlockPos raw = raycastForPoint(player);
-        BlockPos to = resolveEnd(player, from, raw, settings);
+        BlockPos to = resolveEnd(player, stack, from, raw, settings);
 
-        if (sizeOf(from, to, settings) > maxFor(settings)) {
+        // Only fails now when even a single step is too big, which means a ribbon whose width
+        // alone is over the limit. Everything else has already been shortened to fit.
+        if (sizeOf(from, to, settings) > limitFor(player, stack)) {
             return null;
         }
 
@@ -473,9 +480,17 @@ public class GradientWandItem extends Item {
         return planLine(request.from(), request.to(), request.palette(), request.settings());
     }
 
-    // Where point B ends up once the mode and sneaking have had their say. The preview and the
-    // click both go through here, so the two can never disagree.
-    public static BlockPos resolveEnd(PlayerEntity player, BlockPos from, BlockPos raw, WandSettings settings) {
+    // Where point B ends up once the mode, sneaking and the wand's own limits have had their say.
+    // The preview and the click both go through here, so the two can never disagree.
+    public static BlockPos resolveEnd(PlayerEntity player, ItemStack stack, BlockPos from,
+                                      BlockPos raw, WandSettings settings) {
+        return clampToLimit(from, shapeEnd(player, from, raw, settings), settings,
+                limitFor(player, stack));
+    }
+
+    // Point B as the mode and sneaking alone would have it, before any limit is applied. Kept
+    // separate so a click can tell whether the wand shortened the selection.
+    private static BlockPos shapeEnd(PlayerEntity player, BlockPos from, BlockPos raw, WandSettings settings) {
         // A ribbon is never snapped: sneaking shifts where its width grows from, nothing more
         if (settings.mode() == WandSettings.Mode.RIBBON) {
             return raw;
@@ -608,8 +623,90 @@ public class GradientWandItem extends Item {
         };
     }
 
-    private static long maxFor(WandSettings settings) {
-        return settings.mode() == WandSettings.Mode.STRIP ? MAX_BLOCKS : MAX_WALL_BLOCKS;
+    // The most blocks this wand could place right now. The cap belongs to the wand rather than the
+    // shape, so a wooden wand places 16 whatever the mode, and in survival durability can bite
+    // first. Creative players never wear a wand down, so only the cap applies to them.
+    private static long limitFor(PlayerEntity player, ItemStack stack) {
+        long cap = WandTier.of(stack).maxBlocks();
+
+        if (player.isCreative()) {
+            return cap;
+        }
+
+        int left = usesLeft(stack);
+
+        return left < 0 ? cap : Math.min(cap, left);
+    }
+
+    // How many more blocks this wand can place before it breaks, or -1 when it never will
+    private static int usesLeft(ItemStack stack) {
+        return stack.isDamageable() ? stack.getMaxDamage() - stack.getDamage() : -1;
+    }
+
+    // Which of the two limits actually bit, so the message can say something useful
+    private static String limitReason(PlayerEntity player, ItemStack stack) {
+        int left = usesLeft(stack);
+
+        if (!player.isCreative() && left >= 0 && left < WandTier.of(stack).maxBlocks()) {
+            return left + " durability left";
+        }
+
+        return WandTier.of(stack).label() + " wand limit";
+    }
+
+    // After clamping, a selection can never outrun the durability, so the only warning left is
+    // that this build spends the very last of it.
+    private static void warnIfWandWillBreak(PlayerEntity player, ItemStack stack, int blocks) {
+        int left = usesLeft(stack);
+
+        if (player.isCreative() || left < 0 || blocks < left) {
+            return;
+        }
+
+        player.sendMessage(Text.literal("This build uses the last of your wand, so it will break")
+                .formatted(Formatting.RED), false);
+    }
+
+    // Walks the end point back toward A until the selection fits what the wand can actually do,
+    // so aiming too far builds as far as it reaches instead of being refused outright.
+    private static BlockPos clampToLimit(BlockPos from, BlockPos to, WandSettings settings, long limit) {
+        if (sizeOf(from, to, settings) <= limit) {
+            return to;
+        }
+
+        int steps = Math.max(Math.abs(to.getX() - from.getX()),
+                Math.max(Math.abs(to.getY() - from.getY()), Math.abs(to.getZ() - from.getZ())));
+
+        // A selection only ever grows as its end point moves away from A, so the furthest one that
+        // still fits can be found by bisection instead of by trying every step in turn
+        int low = 0;
+        int high = steps;
+
+        while (low < high) {
+            int middle = (low + high + 1) / 2;
+
+            if (sizeOf(from, stepAlong(from, to, middle, steps), settings) <= limit) {
+                low = middle;
+            } else {
+                high = middle - 1;
+            }
+        }
+
+        return stepAlong(from, to, low, steps);
+    }
+
+    // The point that many whole steps of the way from A to B, rounded exactly as planLine does
+    private static BlockPos stepAlong(BlockPos from, BlockPos to, int step, int steps) {
+        if (steps == 0) {
+            return from;
+        }
+
+        double t = (double) step / steps;
+
+        return new BlockPos(
+                from.getX() + (int) Math.round(t * (to.getX() - from.getX())),
+                from.getY() + (int) Math.round(t * (to.getY() - from.getY())),
+                from.getZ() + (int) Math.round(t * (to.getZ() - from.getZ())));
     }
 
     // The positions that would actually change. The cost has to be based on these, not on the
@@ -629,7 +726,7 @@ public class GradientWandItem extends Item {
         return free;
     }
 
-    private static void handleClick(PlayerEntity player, ItemStack stack, BlockPos pos) {
+    private static void handleClick(PlayerEntity player, ItemStack stack, Hand hand, BlockPos pos) {
         BlockPos pointA = getPointA(stack);
 
         if (pointA == null) {
@@ -653,12 +750,16 @@ public class GradientWandItem extends Item {
         }
 
         WandSettings settings = WandSettings.from(stack);
-        BlockPos end = resolveEnd(player, pointA, pos, settings);
+        BlockPos wanted = shapeEnd(player, pointA, pos, settings);
+        BlockPos end = resolveEnd(player, stack, pointA, pos, settings);
         long size = sizeOf(pointA, end, settings);
+        long limit = limitFor(player, stack);
 
-        if (size > maxFor(settings)) {
-            player.sendMessage(Text.literal("That selection is " + size + " blocks, max is " + maxFor(settings))
-                    .formatted(Formatting.RED), true);
+        // Shortening the line cannot rescue a ribbon whose width alone is over the limit, so that
+        // is the one selection still worth refusing, and the message says what would help
+        if (size > limit) {
+            player.sendMessage(Text.literal("A ribbon " + settings.width() + " wide needs " + size
+                    + " blocks and this wand can manage " + limit).formatted(Formatting.RED), true);
             clearPointA(stack);
             return;
         }
@@ -683,8 +784,15 @@ public class GradientWandItem extends Item {
             MaterialCost.consume(player, needed);
         }
 
+        if (!end.equals(wanted)) {
+            player.sendMessage(Text.literal("Stretched as far as this wand reaches: "
+                    + free.size() + " blocks, " + limitReason(player, stack)), true);
+        }
+
+        warnIfWandWillBreak(player, stack, free.size());
+
         // The wave places them over the next few ticks, and reports when it finishes
-        PlacementQueue.start(player, pointA, free, paid);
+        PlacementQueue.start(player, stack, hand, pointA, free, paid);
 
         clearPointA(stack);
     }
