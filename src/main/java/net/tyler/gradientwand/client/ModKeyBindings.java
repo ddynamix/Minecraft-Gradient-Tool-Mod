@@ -6,6 +6,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.item.ItemStack;
+import net.minecraft.text.Text;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
 import net.tyler.gradientwand.item.custom.WandSettings;
 import net.tyler.gradientwand.item.custom.WandTier;
@@ -15,6 +16,16 @@ import org.lwjgl.glfw.GLFW;
 public class ModKeyBindings {
 
     private static KeyBinding openMenu;
+
+    // Read fresh every time rather than cached, so rebinding the key in Controls shows up in the
+    // tooltip straight away. Tooltips are rebuilt every frame, so there is nothing to invalidate.
+    public static Text menuKeyLabel() {
+        if (openMenu == null || openMenu.isUnbound()) {
+            return Text.translatable("key.keyboard.unknown");
+        }
+
+        return openMenu.getBoundKeyLocalizedText();
+    }
 
     // Edge detection by hand: vanilla drains attackKey.wasPressed() earlier in the tick
     private static boolean attackWasDown;

@@ -6,6 +6,8 @@ import net.minecraft.util.Identifier;
 
 import net.tyler.gradientwand.animation.PlacementQueue;
 import net.tyler.gradientwand.command.GradientWandCommand;
+import net.tyler.gradientwand.enchantment.ModEnchantments;
+import net.tyler.gradientwand.loot.WandLoot;
 import net.tyler.gradientwand.item.ModItemGroups;
 import net.tyler.gradientwand.item.ModItems;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
@@ -26,6 +28,8 @@ public class GradientWand implements ModInitializer {
 		LOGGER.info("Hello Fabric world!");
 		ModItems.registerModItems();
 		ModItemGroups.registerItemGroups();
+		ModEnchantments.register();
+		WandLoot.register();
 		GradientWandItem.registerNoBlockBreaking();
 		GradientWandCommand.register();
 		WandSettingsPacket.registerReceiver();

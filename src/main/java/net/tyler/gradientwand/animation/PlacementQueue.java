@@ -187,7 +187,7 @@ public class PlacementQueue {
     // and the netherite wand both fall out of this for free: damage() ignores creative mode and
     // non-damageable items, and addExhaustion ignores creative too.
     private static void charge(Animation animation) {
-        HungerCost.charge(animation.player);
+        HungerCost.charge(animation.player, animation.wand);
 
         animation.wand.damage(1, animation.player, player -> player.sendToolBreakStatus(animation.hand));
 

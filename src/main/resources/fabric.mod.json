@@ -2,14 +2,14 @@
 	"schemaVersion": 1,
 	"id": "gradient_wand",
 	"version": "${version}",
-	"name": "gradient-wand",
-	"description": "This is the first mod by ddynamix, a gradient tool to help you build.",
+	"name": "Gradient Wand",
+	"description": "A mod that adds several gradient wands to Minecraft",
 	"authors": [
-		"ddynamix"
+		"Tyler (ddynamix)"
 	],
 	"contact": {
 		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"sources": "https://github.com/ddynamix/Minecraft-Gradient-Tool-Mod"
 	},
 	"license": "MIT",
 	"icon": "assets/gradient-wand/icon.png",

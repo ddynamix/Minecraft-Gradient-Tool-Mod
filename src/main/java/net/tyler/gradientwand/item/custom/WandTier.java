@@ -15,7 +15,7 @@ public enum WandTier {
     IRON("iron", "Iron", 512, 128, 7, 14),
     GOLD("gold", "Gold", 128, 128, 16, 22),
     DIAMOND("diamond", "Diamond", 2056, 256, 32, 10),
-    NETHERITE("netherite", "Netherite", 0, 4096, 128, 0);
+    NETHERITE("netherite", "Netherite", 0, 4096, 128, 15);
 
     private final String name;
     private final String label;
@@ -59,8 +59,9 @@ public enum WandTier {
         return maxWidth;
     }
 
-    // Zero means an enchanting table will not offer anything, which is what the netherite wand
-    // wants: it never takes damage, so Unbreaking and Mending would do nothing for it.
+    // Netherite carries a real value despite never wearing out, so that the two wand enchantments
+    // are open to it. It still cannot take Unbreaking or Mending: those target BREAKABLE, and a
+    // wand with no durability bar fails that test whatever its enchantability says.
     public int enchantability() {
         return enchantability;
     }

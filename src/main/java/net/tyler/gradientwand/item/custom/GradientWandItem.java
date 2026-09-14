@@ -2,7 +2,6 @@ package net.tyler.gradientwand.item.custom;
 
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.minecraft.block.BlockState;
-import net.minecraft.client.item.TooltipContext;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.BlockItem;
@@ -25,6 +24,7 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import net.tyler.gradientwand.cost.HungerCost;
 import net.tyler.gradientwand.cost.MaterialCost;
+import net.tyler.gradientwand.enchantment.ModEnchantments;
 import net.tyler.gradientwand.animation.PlacementQueue;
 
 import java.util.*;
@@ -60,6 +60,15 @@ public class GradientWandItem extends Item {
     @Override
     public int getEnchantability() {
         return tier.enchantability();
+    }
+
+    // Item asks for a durability bar here, which would shut the netherite wand out of enchanting
+    // altogether. Capacity and Stamina are just as useful on a wand that never wears out, so the
+    // only thing worth checking is that this is a single item. Unbreaking and Mending still
+    // exclude themselves from netherite on their own, through the BREAKABLE target.
+    @Override
+    public boolean isEnchantable(ItemStack stack) {
+        return stack.getCount() == 1;
     }
 
     // The wand never breaks blocks. Cancelling is handled client side instead, so that it works
@@ -105,37 +114,12 @@ public class GradientWandItem extends Item {
         return TypedActionResult.success(stack, world.isClient());
     }
 
-    // Shimmer while point A is saved
+    // Shimmer while point A is saved, and whenever the wand is enchanted. The super call matters:
+    // Item.hasGlint is what puts the glint on an enchanted item, so overriding it outright, as
+    // this used to, threw the enchantment glint away and left only the point A one.
     @Override
     public boolean hasGlint(ItemStack stack) {
-        return getPointA(stack) != null;
-    }
-
-    @Override
-    public void appendTooltip(ItemStack stack, World world, List<Text> tooltip, TooltipContext context) {
-        BlockPos pointA = getPointA(stack);
-
-        if (pointA != null) {
-            tooltip.add(Text.literal("Point A: " + pointA.toShortString()).formatted(Formatting.AQUA));
-            tooltip.add(Text.literal(sneakHint(WandSettings.from(stack))).formatted(Formatting.DARK_GRAY));
-            tooltip.add(Text.literal("Left-click to cancel").formatted(Formatting.DARK_GRAY));
-        } else {
-            tooltip.add(Text.literal("Right-click a block to set point A").formatted(Formatting.GRAY));
-        }
-
-        tooltip.add(Text.literal(tier.label() + ": up to " + tier.maxBlocks() + " blocks, width up to "
-                + tier.maxWidth()).formatted(Formatting.DARK_GRAY));
-        tooltip.add(Text.literal(WandSettings.from(stack).describe()).formatted(Formatting.DARK_GRAY));
-        super.appendTooltip(stack, world, tooltip, context);
-    }
-
-    // Sneaking means something different in every mode, so say which one
-    private static String sneakHint(WandSettings settings) {
-        return switch (settings.mode()) {
-            case WALL -> "Sneak to keep the wall upright";
-            case RIBBON -> "Sneak to grow the width from one side";
-            case STRIP -> "Sneak to lock to one axis";
-        };
+        return getPointA(stack) != null || super.hasGlint(stack);
     }
 
     // Stops the wand dipping out of hand every time its NBT changes
@@ -636,7 +620,8 @@ public class GradientWandItem extends Item {
     // shape, so a wooden wand places 16 whatever the mode, and in survival durability can bite
     // first. Creative players never wear a wand down, so only the cap applies to them.
     private static long limitFor(PlayerEntity player, ItemStack stack) {
-        long cap = WandTier.of(stack).maxBlocks();
+        // Capacity raises the tier's cap and nothing else: durability is still one point a block
+        long cap = (long) (WandTier.of(stack).maxBlocks() * ModEnchantments.capacityMultiplier(stack));
 
         if (player.isCreative()) {
             return cap;
@@ -760,7 +745,7 @@ public class GradientWandItem extends Item {
 
         // Checked before anything is spent, and only when starting a build: a build already under
         // way is allowed to empty the bar and still finish.
-        if (!HungerCost.canStart(player)) {
+        if (!HungerCost.canStart(player, stack)) {
             player.sendMessage(Text.literal("You are too hungry to build, eat something first")
                     .formatted(Formatting.RED), true);
             clearPointA(stack);

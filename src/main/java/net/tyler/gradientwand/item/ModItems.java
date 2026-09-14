@@ -1,10 +1,7 @@
 package net.tyler.gradientwand.item;
 
 import net.fabricmc.fabric.api.item.v1.FabricItemSettings;
-import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroupEntries;
-import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.minecraft.item.Item;
-import net.minecraft.item.ItemGroups;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.util.Identifier;
@@ -36,16 +33,11 @@ public class ModItems {
         return WANDS.get(tier);
     }
 
-    public static void addItemsToIngredientItemGroup(FabricItemGroupEntries entries) {
-        for (WandTier tier : WandTier.values()) {
-            entries.add(of(tier));
-        }
-    }
-
+    // Looks like it does nothing now, but calling it is what loads this class, and loading the
+    // class is what runs the static block above that registers all seven wands. The wands appear
+    // in the mod's own tab only; they are deliberately not added to the vanilla ingredients tab.
     public static void registerModItems() {
         GradientWand.LOGGER.info("Registering Mod Items for " + GradientWand.MOD_ID);
-
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.INGREDIENTS).register(ModItems::addItemsToIngredientItemGroup);
     }
 
     // maxDamage and fireproof are mutually exclusive here on purpose: the netherite wand never

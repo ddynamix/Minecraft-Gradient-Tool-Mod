@@ -9,6 +9,11 @@
   "item.gradient_wand.diamond_gradient_wand": "Diamond Gradient Wand",
   "item.gradient_wand.netherite_gradient_wand": "Netherite Gradient Wand",
 
+  "tooltip.gradient_wand.menu": "Press [%s] for menu",
+
+  "enchantment.gradient_wand.capacity": "Capacity",
+  "enchantment.gradient_wand.stamina": "Stamina",
+
   "itemgroup.gradient_wand": "Gradient Wands",
 
   "key.gradient_wand.open_menu": "Open Gradient Wand Menu",
