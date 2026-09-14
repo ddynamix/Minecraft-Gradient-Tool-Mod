@@ -174,94 +174,124 @@ public class GradientWandItem extends Item {
         return (h >>> 40) / (float) (1 << 24);
     }
 
-    // A wall that follows the A to B line instead of an axis. Its face points at the player,
-    // so the width grows perpendicular to the line within the plane you are looking at.
     private static List<PlannedBlock> planRibbon(GradientRequest request) {
         BlockPos from = request.from();
         BlockPos to = request.to();
         List<BlockState> palette = request.palette();
         WandSettings settings = request.settings();
 
+        Vec3d origin = from.toCenterPos();
+        Vec3d line = to.toCenterPos().subtract(origin);
+        Vec3d spine = line.lengthSquared() < 1.0E-6 ? new Vec3d(1.0, 0.0, 0.0) : line.normalize();
+        Vec3d normal = ribbonNormal(from, to, request.eye());
         Vec3d side = ribbonSide(from, to, request.eye(), request.look());
 
-        int dx = to.getX() - from.getX();
-        int dy = to.getY() - from.getY();
-        int dz = to.getZ() - from.getZ();
-
+        double length = Math.sqrt(line.lengthSquared());
+        int width = settings.width();
         int count = blocksInLine(from, to);
-        int steps = count - 1;
+
+        // Sneaking grows the width from one edge instead of from the middle
+        int lowest = request.anchorLeft() ? -(width - 1) : -((width - 1) / 2);
+        int highest = lowest + width - 1;
+
+        // Walk one block per column along the axis the wall faces most. That guarantees exactly
+        // one block per column, so the surface is solid instead of full of diagonal pinholes.
+        int axis = dominantOf(normal);
+        int first = (axis + 1) % 3;
+        int second = (axis + 2) % 3;
+
+        int[] min = new int[3];
+        int[] max = new int[3];
+
+        boundsOf(origin, spine, side, length, lowest, highest, min, max);
 
         List<PlannedBlock> planned = new ArrayList<>();
-        Set<BlockPos> seen = new HashSet<>();
+        double plane = normal.dotProduct(origin);
 
-        for (int i = 0; i < count; i++) {
-            double t = steps == 0 ? 0.0 : (double) i / steps;
+        for (int u = min[first]; u <= max[first]; u++) {
+            for (int v = min[second]; v <= max[second]; v++) {
+                double known = component(normal, first) * (u + 0.5) + component(normal, second) * (v + 0.5);
+                int along = (int) Math.round((plane - known) / component(normal, axis) - 0.5);
 
-            BlockPos spine = new BlockPos(
-                    from.getX() + (int) Math.round(t * dx),
-                    from.getY() + (int) Math.round(t * dy),
-                    from.getZ() + (int) Math.round(t * dz));
+                int[] xyz = new int[3];
 
-            for (BlockPos pos : ribbonRow(spine, side, settings.width(), request.anchorLeft())) {
-                // Neighbouring spine blocks share cells on a diagonal, which is what keeps the
-                // surface solid rather than striped
-                if (seen.add(pos)) {
-                    planned.add(new PlannedBlock(pos, pick(palette, i, count, pos, settings)));
+                xyz[first] = u;
+                xyz[second] = v;
+                xyz[axis] = along;
+
+                BlockPos pos = new BlockPos(xyz[0], xyz[1], xyz[2]);
+                Vec3d offset = pos.toCenterPos().subtract(origin);
+
+                double down = offset.dotProduct(spine);
+                double across = offset.dotProduct(side);
+
+                if (down < -0.5 || down > length + 0.5) {
+                    continue;
                 }
+
+                if (across < lowest - 0.5 || across > highest + 0.5) {
+                    continue;
+                }
+
+                // The gradient runs along the line, so read the band off this block's own
+                // position rather than off a spine step
+                int step = Math.max(0, Math.min(count - 1,
+                        (int) Math.round(length < 1.0E-6 ? 0.0 : down / length * (count - 1))));
+
+                planned.add(new PlannedBlock(pos, pick(palette, step, count, pos, settings)));
             }
         }
 
         return planned;
     }
 
-    // One slice across the ribbon. Centred by default, or grown from one edge while sneaking.
-    private static List<BlockPos> ribbonRow(BlockPos spine, Vec3d side, int width, boolean anchorLeft) {
-        Vec3d centre = spine.toCenterPos();
-
-        if (anchorLeft) {
-            return cellsAlong(centre, side.multiply(-1.0), width);
+    // The corner of the block grid the ribbon can possibly touch
+    private static void boundsOf(Vec3d origin, Vec3d spine, Vec3d side, double length,
+                                 int lowest, int highest, int[] min, int[] max) {
+        for (int i = 0; i < 3; i++) {
+            min[i] = Integer.MAX_VALUE;
+            max[i] = Integer.MIN_VALUE;
         }
 
-        List<BlockPos> row = new ArrayList<>(cellsAlong(centre, side.multiply(-1.0), (width - 1) / 2 + 1));
+        for (double down : new double[]{0.0, length}) {
+            for (double across : new double[]{lowest - 0.5, highest + 0.5}) {
+                Vec3d corner = origin.add(spine.multiply(down)).add(side.multiply(across));
 
-        Collections.reverse(row);
-        row.addAll(cellsAlong(centre, side, width / 2 + 1).subList(1, width / 2 + 1));
+                for (int i = 0; i < 3; i++) {
+                    int value = (int) Math.floor(component(corner, i));
 
-        return row;
-    }
-
-    // The first "count" DISTINCT blocks walking away from a centre. Stepping cell by cell like
-    // this is what stops a diagonal ribbon collapsing into a ragged band full of holes.
-    private static List<BlockPos> cellsAlong(Vec3d centre, Vec3d direction, int count) {
-        List<BlockPos> cells = new ArrayList<>(count);
-
-        cells.add(BlockPos.ofFloored(centre));
-
-        double travelled = 0.0;
-        double limit = count * 4.0 + 8.0;
-
-        while (cells.size() < count && travelled < limit) {
-            travelled += 0.25;
-
-            BlockPos next = BlockPos.ofFloored(centre.add(direction.multiply(travelled)));
-
-            if (!next.equals(cells.get(cells.size() - 1))) {
-                cells.add(next);
+                    min[i] = Math.min(min[i], value - 1);
+                    max[i] = Math.max(max[i], value + 1);
+                }
             }
         }
-
-        return cells;
     }
 
-    // Perpendicular to the line, inside the plane whose normal points at the player
-    private static Vec3d ribbonSide(BlockPos from, BlockPos to, Vec3d eye, Vec3d look) {
+    private static int dominantOf(Vec3d vector) {
+        double x = Math.abs(vector.x);
+        double y = Math.abs(vector.y);
+        double z = Math.abs(vector.z);
+
+        if (x >= y && x >= z) {
+            return 0;
+        }
+
+        return y >= z ? 1 : 2;
+    }
+
+    private static double component(Vec3d vector, int axis) {
+        return axis == 0 ? vector.x : axis == 1 ? vector.y : vector.z;
+    }
+
+    // Perpendicular to the line, pointing at the player. Shared by the side vector and the
+    // column walk, so the two can never disagree about which way the wall faces.
+    private static Vec3d ribbonNormal(BlockPos from, BlockPos to, Vec3d eye) {
         Vec3d line = to.toCenterPos().subtract(from.toCenterPos());
         Vec3d spine = line.lengthSquared() < 1.0E-6 ? new Vec3d(1.0, 0.0, 0.0) : line.normalize();
 
         Vec3d middle = from.toCenterPos().add(to.toCenterPos()).multiply(0.5);
         Vec3d toPlayer = eye == null ? new Vec3d(0.0, 1.0, 0.0) : eye.subtract(middle);
 
-        // Strip out the part that runs along the line, leaving a true normal
         Vec3d normal = toPlayer.subtract(spine.multiply(toPlayer.dotProduct(spine)));
 
         if (normal.lengthSquared() < 1.0E-4) {
@@ -277,7 +307,15 @@ public class GradientWandItem extends Item {
             }
         }
 
-        Vec3d side = spine.crossProduct(normal.normalize()).normalize();
+        return normal.normalize();
+    }
+
+    // Perpendicular to the line, inside the plane whose normal points at the player
+    private static Vec3d ribbonSide(BlockPos from, BlockPos to, Vec3d eye, Vec3d look) {
+        Vec3d line = to.toCenterPos().subtract(from.toCenterPos());
+        Vec3d spine = line.lengthSquared() < 1.0E-6 ? new Vec3d(1.0, 0.0, 0.0) : line.normalize();
+
+        Vec3d side = spine.crossProduct(ribbonNormal(from, to, eye)).normalize();
         Vec3d left = look == null
                 ? new Vec3d(0.0, 0.0, 1.0)
                 : new Vec3d(0.0, 1.0, 0.0).crossProduct(look);
