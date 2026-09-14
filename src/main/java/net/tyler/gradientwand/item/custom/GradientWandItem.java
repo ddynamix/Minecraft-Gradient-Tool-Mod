@@ -23,6 +23,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
+import net.tyler.gradientwand.cost.HungerCost;
 import net.tyler.gradientwand.cost.MaterialCost;
 import net.tyler.gradientwand.animation.PlacementQueue;
 
@@ -745,6 +746,15 @@ public class GradientWandItem extends Item {
 
         if (palette.isEmpty()) {
             player.sendMessage(Text.literal("Put some blocks in your hotbar first").formatted(Formatting.RED), true);
+            clearPointA(stack);
+            return;
+        }
+
+        // Checked before anything is spent, and only when starting a build: a build already under
+        // way is allowed to empty the bar and still finish.
+        if (!HungerCost.canStart(player)) {
+            player.sendMessage(Text.literal("You are too hungry to build, eat something first")
+                    .formatted(Formatting.RED), true);
             clearPointA(stack);
             return;
         }

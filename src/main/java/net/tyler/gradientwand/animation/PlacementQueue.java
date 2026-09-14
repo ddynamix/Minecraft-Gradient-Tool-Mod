@@ -12,6 +12,7 @@ import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import net.tyler.gradientwand.cost.HungerCost;
 import net.tyler.gradientwand.cost.MaterialCost;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
 import net.tyler.gradientwand.undo.UndoHistory;
@@ -182,9 +183,12 @@ public class PlacementQueue {
         }
     }
 
-    // One point of durability per block actually placed. Creative players and the netherite wand
-    // both fall out of this for free: damage() ignores creative mode and non-damageable items.
+    // One point of durability and a slice of hunger per block actually placed. Creative players
+    // and the netherite wand both fall out of this for free: damage() ignores creative mode and
+    // non-damageable items, and addExhaustion ignores creative too.
     private static void charge(Animation animation) {
+        HungerCost.charge(animation.player);
+
         animation.wand.damage(1, animation.player, player -> player.sendToolBreakStatus(animation.hand));
 
         // Breaking empties the stack, which is the only reliable signal that it is gone
