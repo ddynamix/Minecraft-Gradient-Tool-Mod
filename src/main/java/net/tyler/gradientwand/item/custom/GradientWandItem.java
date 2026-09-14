@@ -20,13 +20,12 @@ import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import net.tyler.gradientwand.cost.MaterialCost;
 import net.tyler.gradientwand.animation.PlacementQueue;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class GradientWandItem extends Item {
 
@@ -175,7 +174,123 @@ public class GradientWandItem extends Item {
         return (h >>> 40) / (float) (1 << 24);
     }
 
-    // Every block this gradient would place, from point A to point B. Pure maths, no world access.
+    // A wall that follows the A to B line instead of an axis. Its face points at the player,
+    // so the width grows perpendicular to the line within the plane you are looking at.
+    private static List<PlannedBlock> planRibbon(GradientRequest request) {
+        BlockPos from = request.from();
+        BlockPos to = request.to();
+        List<BlockState> palette = request.palette();
+        WandSettings settings = request.settings();
+
+        Vec3d side = ribbonSide(from, to, request.eye(), request.look());
+
+        int dx = to.getX() - from.getX();
+        int dy = to.getY() - from.getY();
+        int dz = to.getZ() - from.getZ();
+
+        int count = blocksInLine(from, to);
+        int steps = count - 1;
+
+        List<PlannedBlock> planned = new ArrayList<>();
+        Set<BlockPos> seen = new HashSet<>();
+
+        for (int i = 0; i < count; i++) {
+            double t = steps == 0 ? 0.0 : (double) i / steps;
+
+            BlockPos spine = new BlockPos(
+                    from.getX() + (int) Math.round(t * dx),
+                    from.getY() + (int) Math.round(t * dy),
+                    from.getZ() + (int) Math.round(t * dz));
+
+            for (BlockPos pos : ribbonRow(spine, side, settings.width(), request.anchorLeft())) {
+                // Neighbouring spine blocks share cells on a diagonal, which is what keeps the
+                // surface solid rather than striped
+                if (seen.add(pos)) {
+                    planned.add(new PlannedBlock(pos, pick(palette, i, count, pos, settings)));
+                }
+            }
+        }
+
+        return planned;
+    }
+
+    // One slice across the ribbon. Centred by default, or grown from one edge while sneaking.
+    private static List<BlockPos> ribbonRow(BlockPos spine, Vec3d side, int width, boolean anchorLeft) {
+        Vec3d centre = spine.toCenterPos();
+
+        if (anchorLeft) {
+            return cellsAlong(centre, side.multiply(-1.0), width);
+        }
+
+        List<BlockPos> row = new ArrayList<>(cellsAlong(centre, side.multiply(-1.0), (width - 1) / 2 + 1));
+
+        Collections.reverse(row);
+        row.addAll(cellsAlong(centre, side, width / 2 + 1).subList(1, width / 2 + 1));
+
+        return row;
+    }
+
+    // The first "count" DISTINCT blocks walking away from a centre. Stepping cell by cell like
+    // this is what stops a diagonal ribbon collapsing into a ragged band full of holes.
+    private static List<BlockPos> cellsAlong(Vec3d centre, Vec3d direction, int count) {
+        List<BlockPos> cells = new ArrayList<>(count);
+
+        cells.add(BlockPos.ofFloored(centre));
+
+        double travelled = 0.0;
+        double limit = count * 4.0 + 8.0;
+
+        while (cells.size() < count && travelled < limit) {
+            travelled += 0.25;
+
+            BlockPos next = BlockPos.ofFloored(centre.add(direction.multiply(travelled)));
+
+            if (!next.equals(cells.get(cells.size() - 1))) {
+                cells.add(next);
+            }
+        }
+
+        return cells;
+    }
+
+    // Perpendicular to the line, inside the plane whose normal points at the player
+    private static Vec3d ribbonSide(BlockPos from, BlockPos to, Vec3d eye, Vec3d look) {
+        Vec3d line = to.toCenterPos().subtract(from.toCenterPos());
+        Vec3d spine = line.lengthSquared() < 1.0E-6 ? new Vec3d(1.0, 0.0, 0.0) : line.normalize();
+
+        Vec3d middle = from.toCenterPos().add(to.toCenterPos()).multiply(0.5);
+        Vec3d toPlayer = eye == null ? new Vec3d(0.0, 1.0, 0.0) : eye.subtract(middle);
+
+        // Strip out the part that runs along the line, leaving a true normal
+        Vec3d normal = toPlayer.subtract(spine.multiply(toPlayer.dotProduct(spine)));
+
+        if (normal.lengthSquared() < 1.0E-4) {
+            // Standing on the line itself: fall back to as upright as the line allows
+            Vec3d up = new Vec3d(0.0, 1.0, 0.0);
+
+            normal = up.subtract(spine.multiply(up.dotProduct(spine)));
+
+            if (normal.lengthSquared() < 1.0E-4) {
+                Vec3d east = new Vec3d(1.0, 0.0, 0.0);
+
+                normal = east.subtract(spine.multiply(east.dotProduct(spine)));
+            }
+        }
+
+        Vec3d side = spine.crossProduct(normal.normalize()).normalize();
+        Vec3d left = look == null
+                ? new Vec3d(0.0, 0.0, 1.0)
+                : new Vec3d(0.0, 1.0, 0.0).crossProduct(look);
+
+        if (left.lengthSquared() > 1.0E-6 && Math.abs(side.dotProduct(left.normalize())) > 0.1) {
+            // Point it at the player's left where that means anything
+            return side.dotProduct(left.normalize()) < 0.0 ? side.multiply(-1.0) : side;
+        }
+
+        // A ribbon growing vertically has no left, so sneaking builds downwards
+        return side.y > 0.0 ? side.multiply(-1.0) : side;
+    }
+
     private static List<PlannedBlock> planLine(BlockPos from, BlockPos to,
                                                List<BlockState> palette, WandSettings settings) {
         int dx = to.getX() - from.getX();
@@ -201,9 +316,19 @@ public class GradientWandItem extends Item {
         return planned;
     }
 
-    // Everything needed to work out one gradient. Being a record gives us equals() for free,
-    // which is what lets the preview cache tell when nothing has changed.
-    public record GradientRequest(BlockPos from, BlockPos to, List<BlockState> palette, WandSettings settings) {
+    public record GradientRequest(BlockPos from, BlockPos to, List<BlockState> palette,
+                                  WandSettings settings, Vec3d eye, Vec3d look, boolean anchorLeft) {
+    }
+
+    // Both the preview and the click build the request here, so the two cannot drift apart
+    private static GradientRequest requestFrom(PlayerEntity player, BlockPos from, BlockPos to,
+                                               List<BlockState> palette, WandSettings settings) {
+        boolean ribbon = settings.mode() == WandSettings.Mode.RIBBON;
+
+        return new GradientRequest(from, to, palette, settings,
+                ribbon ? player.getEyePos() : null,
+                ribbon ? player.getRotationVec(1.0f) : null,
+                ribbon && player.isSneaking());
     }
 
     // What the wand would do if you clicked right now, or null when there is nothing to show
@@ -229,10 +354,14 @@ public class GradientWandItem extends Item {
             return null;
         }
 
-        return new GradientRequest(from, to, palette, settings);
+        return requestFrom(player, from, to, palette, settings);
     }
 
     public static List<PlannedBlock> plan(GradientRequest request) {
+        if (request.settings().mode() == WandSettings.Mode.RIBBON) {
+            return planRibbon(request);
+        }
+
         if (request.settings().mode() == WandSettings.Mode.WALL) {
             return fillBetween(request.from(), request.to(), request.palette(),
                     resolveGradientAxis(request.settings().axis(), request.from(), request.to()),
@@ -245,8 +374,9 @@ public class GradientWandItem extends Item {
     // Where point B ends up once the mode and sneaking have had their say. The preview and the
     // click both go through here, so the two can never disagree.
     public static BlockPos resolveEnd(PlayerEntity player, BlockPos from, BlockPos raw, WandSettings settings) {
-        if (settings.mode() == WandSettings.Mode.WALL) {
-            return flatten(from, raw, wallNormal(from, raw, player.isSneaking()));
+        // A ribbon is never snapped: sneaking shifts where its width grows from, nothing more
+        if (settings.mode() == WandSettings.Mode.RIBBON) {
+            return raw;
         }
 
         if (player.isSneaking()) {
@@ -368,13 +498,15 @@ public class GradientWandItem extends Item {
     }
 
     private static long sizeOf(BlockPos from, BlockPos to, WandSettings settings) {
-        return settings.mode() == WandSettings.Mode.WALL
-                ? blocksInBox(from, to)
-                : blocksInLine(from, to);
+        return switch (settings.mode()) {
+            case WALL -> blocksInBox(from, to);
+            case RIBBON -> (long) blocksInLine(from, to) * settings.width();
+            case STRIP -> blocksInLine(from, to);
+        };
     }
 
     private static long maxFor(WandSettings settings) {
-        return settings.mode() == WandSettings.Mode.WALL ? MAX_WALL_BLOCKS : MAX_BLOCKS;
+        return settings.mode() == WandSettings.Mode.STRIP ? MAX_BLOCKS : MAX_WALL_BLOCKS;
     }
 
     // The positions that would actually change. The cost has to be based on these, not on the
@@ -428,7 +560,7 @@ public class GradientWandItem extends Item {
             return;
         }
 
-        List<PlannedBlock> planned = plan(new GradientRequest(pointA, end, palette, settings));
+        List<PlannedBlock> planned = plan(requestFrom(player, pointA, end, palette, settings));
         List<PlannedBlock> free = placeable(player, planned);
 
         // Recorded now, not at the end: switching game mode mid wave must not change who pays

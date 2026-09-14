@@ -2,6 +2,7 @@ package net.tyler.gradientwand.command;
 
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.FloatArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -28,6 +29,11 @@ public class GradientWandCommand {
                                 .then(CommandManager.argument("amount", FloatArgumentType.floatArg(0.0f, 1.0f))
                                         .executes(context -> apply(context, settings ->
                                                 settings.withJitter(FloatArgumentType.getFloat(context, "amount"))))))
+                        .then(CommandManager.literal("width")
+                                .then(CommandManager.argument("blocks", IntegerArgumentType.integer(
+                                                WandSettings.MIN_WIDTH, WandSettings.MAX_WIDTH))
+                                        .executes(context -> apply(context, settings ->
+                                                settings.withWidth(IntegerArgumentType.getInteger(context, "blocks"))))))
                         .then(CommandManager.literal("show")
                                 .executes(GradientWandCommand::show))));
     }

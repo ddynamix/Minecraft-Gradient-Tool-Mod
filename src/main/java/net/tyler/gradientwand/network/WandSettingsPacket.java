@@ -11,7 +11,7 @@ import net.tyler.gradientwand.item.custom.WandSettings;
 
 // Client to server: "set my wand to these settings". The seed is deliberately not included.
 public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAxis axis,
-                                 WandSettings.Dither dither, float jitter) implements FabricPacket {
+                                 WandSettings.Dither dither, float jitter, int width) implements FabricPacket {
 
     public static final PacketType<WandSettingsPacket> TYPE =
             PacketType.create(GradientWand.id("wand_settings"), WandSettingsPacket::new);
@@ -20,7 +20,9 @@ public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAx
         this(buf.readEnumConstant(WandSettings.Mode.class),
                 buf.readEnumConstant(WandSettings.GradientAxis.class),
                 buf.readEnumConstant(WandSettings.Dither.class),
-                buf.readFloat());
+                buf.readFloat(),
+                buf.readVarInt()
+        );
     }
 
     @Override
@@ -29,6 +31,7 @@ public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAx
         buf.writeEnumConstant(axis);
         buf.writeEnumConstant(dither);
         buf.writeFloat(jitter);
+        buf.writeVarInt(width);
     }
 
     @Override
@@ -51,6 +54,7 @@ public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAx
                     .withAxis(packet.axis())
                     .withDither(packet.dither())
                     .withJitter(Math.max(0.0f, Math.min(1.0f, packet.jitter())))
+                    .withWidth(packet.width())
                     .save(stack);
         });
     }

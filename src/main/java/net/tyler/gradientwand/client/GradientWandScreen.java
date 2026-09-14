@@ -6,6 +6,7 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.CyclingButtonWidget;
 import net.minecraft.client.gui.widget.SliderWidget;
+import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.screen.ScreenTexts;
 import net.minecraft.text.Text;
 import net.tyler.gradientwand.item.custom.WandSettings;
@@ -18,6 +19,7 @@ public class GradientWandScreen extends Screen {
     private static final int WIDGET_WIDTH = 200;
     private static final int WIDGET_HEIGHT = 20;
     private static final int SPACING = 24;
+    private static final int WIDTH_BOX = 50;
 
     private WandSettings settings;
 
@@ -31,11 +33,37 @@ public class GradientWandScreen extends Screen {
         int x = this.width / 2 - WIDGET_WIDTH / 2;
         int y = this.height / 4;
 
+        boolean ribbon = settings.mode() == WandSettings.Mode.RIBBON;
+        int modeWidth = ribbon ? WIDGET_WIDTH - WIDTH_BOX - 4 : WIDGET_WIDTH;
+
         addDrawableChild(CyclingButtonWidget.<WandSettings.Mode>builder(GradientWandScreen::label)
                 .values(WandSettings.Mode.values())
                 .initially(settings.mode())
-                .build(x, y, WIDGET_WIDTH, WIDGET_HEIGHT, Text.literal("Shape"),
-                        (button, value) -> apply(settings.withMode(value))));
+                .build(x, y, modeWidth, WIDGET_HEIGHT, Text.literal("Shape"),
+                        (button, value) -> {
+                            apply(settings.withMode(value));
+
+                            // The width box only belongs to ribbons, so lay the screen out again
+                            clearAndInit();
+                        }));
+
+        if (ribbon) {
+            TextFieldWidget widthField = new TextFieldWidget(this.textRenderer,
+                    x + WIDGET_WIDTH - WIDTH_BOX, y, WIDTH_BOX, WIDGET_HEIGHT, Text.literal("Width"));
+
+            widthField.setMaxLength(2);
+            widthField.setTextPredicate(text -> text.chars().allMatch(Character::isDigit));
+
+            // Set the text before attaching the listener, or opening the screen sends a packet
+            widthField.setText(String.valueOf(settings.width()));
+            widthField.setChangedListener(text -> {
+                if (!text.isEmpty()) {
+                    apply(settings.withWidth(Integer.parseInt(text)));
+                }
+            });
+
+            addDrawableChild(widthField);
+        }
 
         addDrawableChild(CyclingButtonWidget.<WandSettings.GradientAxis>builder(GradientWandScreen::label)
                 .values(WandSettings.GradientAxis.values())
@@ -80,7 +108,7 @@ public class GradientWandScreen extends Screen {
         settings = updated;
 
         ClientPlayNetworking.send(new WandSettingsPacket(updated.mode(), updated.axis(),
-                updated.dither(), updated.jitter()));
+                updated.dither(), updated.jitter(), updated.width()));
     }
 
     @Override
