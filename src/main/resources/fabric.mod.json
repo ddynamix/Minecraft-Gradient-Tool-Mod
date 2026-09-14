@@ -3,12 +3,11 @@
 	"id": "gradient_wand",
 	"version": "${version}",
 	"name": "Gradient Wand",
-	"description": "A mod that adds several gradient wands to Minecraft",
+	"description": "A mod that adds gradient wands to Minecraft.",
 	"authors": [
 		"Tyler (ddynamix)"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
 		"sources": "https://github.com/ddynamix/Minecraft-Gradient-Tool-Mod"
 	},
 	"license": "MIT",
@@ -25,9 +24,6 @@
 			"net.tyler.gradientwand.GradientWandDataGenerator"
 		]
 	},
-	"mixins": [
-		"gradient_wand.mixins.json"
-	],
 	"depends": {
 		"fabricloader": ">=0.19.5",
 		"minecraft": "~1.20.1",
