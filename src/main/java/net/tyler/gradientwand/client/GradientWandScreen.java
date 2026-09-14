@@ -71,16 +71,22 @@ public class GradientWandScreen extends Screen {
                 .build(x, y + SPACING, WIDGET_WIDTH, WIDGET_HEIGHT, Text.literal("Gradient axis"),
                         (button, value) -> apply(settings.withAxis(value))));
 
+        addDrawableChild(CyclingButtonWidget.<WandSettings.Grain>builder(GradientWandScreen::label)
+                .values(WandSettings.Grain.values())
+                .initially(settings.grain())
+                .build(x, y + SPACING * 2, WIDGET_WIDTH, WIDGET_HEIGHT, Text.literal("Grain"),
+                        (button, value) -> apply(settings.withGrain(value))));
+
         addDrawableChild(CyclingButtonWidget.<WandSettings.Dither>builder(GradientWandScreen::label)
                 .values(WandSettings.Dither.values())
                 .initially(settings.dither())
-                .build(x, y + SPACING * 2, WIDGET_WIDTH, WIDGET_HEIGHT, Text.literal("Dither"),
+                .build(x, y + SPACING * 3, WIDGET_WIDTH, WIDGET_HEIGHT, Text.literal("Dither"),
                         (button, value) -> apply(settings.withDither(value))));
 
-        addDrawableChild(new JitterSlider(x, y + SPACING * 3, WIDGET_WIDTH, WIDGET_HEIGHT, settings.jitter()));
+        addDrawableChild(new JitterSlider(x, y + SPACING * 4, WIDGET_WIDTH, WIDGET_HEIGHT, settings.jitter()));
 
         int half = (WIDGET_WIDTH - 4) / 2;
-        int buttonY = y + SPACING * 4 + 8;
+        int buttonY = y + SPACING * 5 + 8;
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Undo"),
                         button -> ClientPlayNetworking.send(new WandUndoPacket()))
@@ -97,10 +103,15 @@ public class GradientWandScreen extends Screen {
                 .build());
     }
 
+    // Enum names become button labels, so EAST_WEST has to come out as "East/West"
     private static Text label(Enum<?> value) {
-        String name = value.name().toLowerCase();
+        String[] parts = value.name().toLowerCase().split("_");
 
-        return Text.literal(name.substring(0, 1).toUpperCase() + name.substring(1));
+        for (int i = 0; i < parts.length; i++) {
+            parts[i] = parts[i].substring(0, 1).toUpperCase() + parts[i].substring(1);
+        }
+
+        return Text.literal(String.join("/", parts));
     }
 
     // Keep a local copy so the screen stays responsive, and tell the server what changed
@@ -108,7 +119,7 @@ public class GradientWandScreen extends Screen {
         settings = updated;
 
         ClientPlayNetworking.send(new WandSettingsPacket(updated.mode(), updated.axis(),
-                updated.dither(), updated.jitter(), updated.width()));
+                updated.dither(), updated.grain(), updated.jitter(), updated.width()));
     }
 
     @Override

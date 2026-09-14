@@ -25,6 +25,7 @@ public class GradientWandCommand {
                         .then(enumOption("mode", WandSettings.Mode.values(), WandSettings::withMode))
                         .then(enumOption("axis", WandSettings.GradientAxis.values(), WandSettings::withAxis))
                         .then(enumOption("dither", WandSettings.Dither.values(), WandSettings::withDither))
+                        .then(enumOption("grain", WandSettings.Grain.values(), WandSettings::withGrain))
                         .then(CommandManager.literal("jitter")
                                 .then(CommandManager.argument("amount", FloatArgumentType.floatArg(0.0f, 1.0f))
                                         .executes(context -> apply(context, settings ->

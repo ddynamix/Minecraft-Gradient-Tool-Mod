@@ -11,6 +11,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.ItemUsageContext;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtHelper;
+import net.minecraft.state.property.Properties;
 import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Formatting;
@@ -104,7 +105,7 @@ public class GradientWandItem extends Item {
 
         if (pointA != null) {
             tooltip.add(Text.literal("Point A: " + pointA.toShortString()).formatted(Formatting.AQUA));
-            tooltip.add(Text.literal("Sneak to lock to one axis").formatted(Formatting.DARK_GRAY));
+            tooltip.add(Text.literal(sneakHint(WandSettings.from(stack))).formatted(Formatting.DARK_GRAY));
             tooltip.add(Text.literal("Left-click to cancel").formatted(Formatting.DARK_GRAY));
         } else {
             tooltip.add(Text.literal("Right-click a block to set point A").formatted(Formatting.GRAY));
@@ -112,6 +113,15 @@ public class GradientWandItem extends Item {
 
         tooltip.add(Text.literal(WandSettings.from(stack).describe()).formatted(Formatting.DARK_GRAY));
         super.appendTooltip(stack, world, tooltip, context);
+    }
+
+    // Sneaking means something different in every mode, so say which one
+    private static String sneakHint(WandSettings settings) {
+        return switch (settings.mode()) {
+            case WALL -> "Sneak to keep the wall upright";
+            case RIBBON -> "Sneak to grow the width from one side";
+            case STRIP -> "Sneak to lock to one axis";
+        };
     }
 
     // Stops the wand dipping out of hand every time its NBT changes
@@ -174,6 +184,56 @@ public class GradientWandItem extends Item {
         return (h >>> 40) / (float) (1 << 24);
     }
 
+    // Logs, pillars, basalt and the like carry an axis. Turning it to run along the longest side
+    // is what stops a horizontal beam of oak looking like a stack of tree trunks. Blocks without
+    // an axis fall straight through, and Properties.AXIS accepts all three values on every block
+    // that has it, so this can never throw.
+    private static BlockState orient(BlockState state, Direction.Axis grain) {
+        if (grain == null || !state.contains(Properties.AXIS)) {
+            return state;
+        }
+
+        return state.with(Properties.AXIS, grain);
+    }
+
+    // Which way the grain runs, or null when the setting is off. LONGEST on a strip is the line's
+    // own direction; on a wall it is the longest edge of the rectangle. No default branch on
+    // purpose: adding a Grain value later will not compile until it is handled here.
+    private static Direction.Axis grainOf(BlockPos from, BlockPos to, WandSettings settings) {
+        return switch (settings.grain()) {
+            case OFF -> null;
+            case LONGEST -> dominantAxis(from, to);
+            case SHORTEST -> middleAxis(from, to);
+            case EAST_WEST -> Direction.Axis.X;
+            case NORTH_SOUTH -> Direction.Axis.Z;
+            case UP_DOWN -> Direction.Axis.Y;
+        };
+    }
+
+    // A ribbon's two sides are its length and its width, and neither is bound to a world axis,
+    // so whichever one the setting asks for is snapped to the nearest axis.
+    private static Direction.Axis ribbonGrain(Vec3d spine, Vec3d side, int count, int width,
+                                              WandSettings settings) {
+        boolean lengthWins = count >= width;
+
+        return switch (settings.grain()) {
+            case OFF -> null;
+            case LONGEST -> axisOf(dominantOf(lengthWins ? spine : side));
+            case SHORTEST -> axisOf(dominantOf(lengthWins ? side : spine));
+            case EAST_WEST -> Direction.Axis.X;
+            case NORTH_SOUTH -> Direction.Axis.Z;
+            case UP_DOWN -> Direction.Axis.Y;
+        };
+    }
+
+    private static Direction.Axis axisOf(int index) {
+        return switch (index) {
+            case 0 -> Direction.Axis.X;
+            case 1 -> Direction.Axis.Y;
+            default -> Direction.Axis.Z;
+        };
+    }
+
     private static List<PlannedBlock> planRibbon(GradientRequest request) {
         BlockPos from = request.from();
         BlockPos to = request.to();
@@ -206,6 +266,7 @@ public class GradientWandItem extends Item {
         boundsOf(origin, spine, side, length, lowest, highest, min, max);
 
         List<PlannedBlock> planned = new ArrayList<>();
+        Direction.Axis grain = ribbonGrain(spine, side, count, width, settings);
         double plane = normal.dotProduct(origin);
 
         for (int u = min[first]; u <= max[first]; u++) {
@@ -238,7 +299,8 @@ public class GradientWandItem extends Item {
                 int step = Math.max(0, Math.min(count - 1,
                         (int) Math.round(length < 1.0E-6 ? 0.0 : down / length * (count - 1))));
 
-                planned.add(new PlannedBlock(pos, pick(palette, step, count, pos, settings)));
+                planned.add(new PlannedBlock(pos,
+                        orient(pick(palette, step, count, pos, settings), grain)));
             }
         }
 
@@ -338,6 +400,8 @@ public class GradientWandItem extends Item {
         int count = blocksInLine(from, to);
         int steps = count - 1;
 
+        Direction.Axis grain = grainOf(from, to, settings);
+
         List<PlannedBlock> planned = new ArrayList<>(count);
 
         for (int i = 0; i < count; i++) {
@@ -348,7 +412,7 @@ public class GradientWandItem extends Item {
                     from.getY() + (int) Math.round(t * dy),
                     from.getZ() + (int) Math.round(t * dz));
 
-            planned.add(new PlannedBlock(pos, pick(palette, i, count, pos, settings)));
+            planned.add(new PlannedBlock(pos, orient(pick(palette, i, count, pos, settings), grain)));
         }
 
         return planned;
@@ -417,6 +481,13 @@ public class GradientWandItem extends Item {
             return raw;
         }
 
+        // A wall is always exactly one block thick. The axis the two points differ least on is
+        // collapsed onto point A, so when they already share a plane this changes nothing at all
+        // and only a genuine box gets squashed. Sneaking keeps Y in the wall, so it stands upright.
+        if (settings.mode() == WandSettings.Mode.WALL) {
+            return flatten(from, raw, wallNormal(from, raw, player.isSneaking()));
+        }
+
         if (player.isSneaking()) {
             return snapToAxis(from, raw, dominantAxis(from, raw));
         }
@@ -426,24 +497,16 @@ public class GradientWandItem extends Item {
 
     // Which axis gets squashed to a single block thick
     private static Direction.Axis wallNormal(BlockPos from, BlockPos to, boolean upright) {
-        int dx = Math.abs(to.getX() - from.getX());
-        int dy = Math.abs(to.getY() - from.getY());
-        int dz = Math.abs(to.getZ() - from.getZ());
-
         // Sneaking keeps Y inside the wall, so the wall always stands upright
         if (upright) {
+            int dx = Math.abs(to.getX() - from.getX());
+            int dz = Math.abs(to.getZ() - from.getZ());
+
             return dx <= dz ? Direction.Axis.X : Direction.Axis.Z;
         }
 
-        if (dx <= dy && dx <= dz) {
-            return Direction.Axis.X;
-        }
-
-        if (dy <= dz) {
-            return Direction.Axis.Y;
-        }
-
-        return Direction.Axis.Z;
+        // The axis to collapse is the thinnest one, which is exactly the shortest side
+        return shortestAxis(from, to);
     }
 
     // Collapses one axis, turning the selection into a flat rectangle
@@ -506,6 +569,8 @@ public class GradientWandItem extends Item {
 
         int count = sizeAlong(from, to, axis);
 
+        Direction.Axis grain = grainOf(from, to, settings);
+
         List<PlannedBlock> planned = new ArrayList<>();
 
         for (int x = minX; x <= maxX; x++) {
@@ -519,7 +584,7 @@ public class GradientWandItem extends Item {
                     BlockPos pos = new BlockPos(x, y, z);
 
                     planned.add(new PlannedBlock(pos,
-                            pick(palette, coordinate - start, count, pos, settings)));
+                            orient(pick(palette, coordinate - start, count, pos, settings), grain)));
                 }
             }
         }
@@ -689,6 +754,43 @@ public class GradientWandItem extends Item {
         }
 
         if (dy >= dz) {
+            return Direction.Axis.Y;
+        }
+
+        return Direction.Axis.Z;
+    }
+
+    // Which axis the two points are closest together on. On a wall that is the single block of
+    // thickness, which is why this is the axis the wall collapses along and not the one the
+    // SHORTEST grain setting uses.
+    private static Direction.Axis shortestAxis(BlockPos from, BlockPos to) {
+        int dx = Math.abs(to.getX() - from.getX());
+        int dy = Math.abs(to.getY() - from.getY());
+        int dz = Math.abs(to.getZ() - from.getZ());
+
+        if (dx <= dy && dx <= dz) {
+            return Direction.Axis.X;
+        }
+
+        if (dy <= dz) {
+            return Direction.Axis.Y;
+        }
+
+        return Direction.Axis.Z;
+    }
+
+    // The second shortest of the three extents: the one axis that is neither the longest nor the
+    // shortest. On a wall the shortest is the single block of thickness, so this is the shorter of
+    // the two edges that actually lie in the wall, which is what "shortest side" means to look at.
+    private static Direction.Axis middleAxis(BlockPos from, BlockPos to) {
+        Direction.Axis longest = dominantAxis(from, to);
+        Direction.Axis shortest = shortestAxis(from, to);
+
+        if (longest != Direction.Axis.X && shortest != Direction.Axis.X) {
+            return Direction.Axis.X;
+        }
+
+        if (longest != Direction.Axis.Y && shortest != Direction.Axis.Y) {
             return Direction.Axis.Y;
         }
 
