@@ -1,6 +1,6 @@
 package net.tyler.gradientwand.item.custom;
 
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.item.ItemStack;
 
 // Everything that differs between the seven wands. A durability of 0 means the tier never wears
 // out at all, which is how vanilla marks an item as not damageable.

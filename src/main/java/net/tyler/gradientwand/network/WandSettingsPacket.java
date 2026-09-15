@@ -3,17 +3,17 @@ package net.tyler.gradientwand.network;
 //? if <1.21 {
 /*import net.fabricmc.fabric.api.networking.v1.FabricPacket;
 import net.fabricmc.fabric.api.networking.v1.PacketType;
-import net.minecraft.network.PacketByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 *///?} else {
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 //?}
 
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.item.ItemStack;
-import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.server.level.ServerPlayer;
 import net.tyler.gradientwand.GradientWand;
 import net.tyler.gradientwand.core.WandSettings;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
@@ -29,24 +29,24 @@ import net.tyler.gradientwand.item.custom.SettingsNbt;
     public static final PacketType<WandSettingsPacket> TYPE =
             PacketType.create(GradientWand.id("wand_settings"), WandSettingsPacket::new);
 
-    public WandSettingsPacket(PacketByteBuf buf) {
-        this(buf.readEnumConstant(WandSettings.Mode.class),
-                buf.readEnumConstant(WandSettings.GradientAxis.class),
-                buf.readEnumConstant(WandSettings.Dither.class),
-                buf.readEnumConstant(WandSettings.Grain.class),
-                buf.readEnumConstant(WandSettings.Easing.class),
+    public WandSettingsPacket(FriendlyByteBuf buf) {
+        this(buf.readEnum(WandSettings.Mode.class),
+                buf.readEnum(WandSettings.GradientAxis.class),
+                buf.readEnum(WandSettings.Dither.class),
+                buf.readEnum(WandSettings.Grain.class),
+                buf.readEnum(WandSettings.Easing.class),
                 buf.readFloat(),
                 buf.readVarInt()
         );
     }
 
     @Override
-    public void write(PacketByteBuf buf) {
-        buf.writeEnumConstant(mode);
-        buf.writeEnumConstant(axis);
-        buf.writeEnumConstant(dither);
-        buf.writeEnumConstant(grain);
-        buf.writeEnumConstant(easing);
+    public void write(FriendlyByteBuf buf) {
+        buf.writeEnum(mode);
+        buf.writeEnum(axis);
+        buf.writeEnum(dither);
+        buf.writeEnum(grain);
+        buf.writeEnum(easing);
         buf.writeFloat(jitter);
         buf.writeVarInt(width);
     }
@@ -63,40 +63,40 @@ import net.tyler.gradientwand.item.custom.SettingsNbt;
 public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAxis axis,
                                  WandSettings.Dither dither, WandSettings.Grain grain,
                                  WandSettings.Easing easing,
-                                 float jitter, int width) implements CustomPayload {
+                                 float jitter, int width) implements CustomPacketPayload {
 
-    public static final CustomPayload.Id<WandSettingsPacket> ID =
-            new CustomPayload.Id<>(GradientWand.id("wand_settings"));
+    public static final CustomPacketPayload.Type<WandSettingsPacket> ID =
+            new CustomPacketPayload.Type<>(GradientWand.id("wand_settings"));
 
-    // PacketCodec.tuple stops at six components and this packet has seven, so the fields are
-    // written and read by hand. RegistryByteBuf extends PacketByteBuf, so the enum helpers are the
+    // StreamCodec.tuple stops at six components and this packet has seven, so the fields are
+    // written and read by hand. RegistryFriendlyByteBuf extends FriendlyByteBuf, so the enum helpers are the
     // same ones the 1.20.1 branch uses and the wire order matches it exactly.
-    public static final PacketCodec<RegistryByteBuf, WandSettingsPacket> CODEC =
-            PacketCodec.of(WandSettingsPacket::encode, WandSettingsPacket::decode);
+    public static final StreamCodec<RegistryFriendlyByteBuf, WandSettingsPacket> CODEC =
+            StreamCodec.ofMember(WandSettingsPacket::encode, WandSettingsPacket::decode);
 
-    private void encode(RegistryByteBuf buf) {
-        buf.writeEnumConstant(mode);
-        buf.writeEnumConstant(axis);
-        buf.writeEnumConstant(dither);
-        buf.writeEnumConstant(grain);
-        buf.writeEnumConstant(easing);
+    private void encode(RegistryFriendlyByteBuf buf) {
+        buf.writeEnum(mode);
+        buf.writeEnum(axis);
+        buf.writeEnum(dither);
+        buf.writeEnum(grain);
+        buf.writeEnum(easing);
         buf.writeFloat(jitter);
         buf.writeVarInt(width);
     }
 
-    private static WandSettingsPacket decode(RegistryByteBuf buf) {
+    private static WandSettingsPacket decode(RegistryFriendlyByteBuf buf) {
         return new WandSettingsPacket(
-                buf.readEnumConstant(WandSettings.Mode.class),
-                buf.readEnumConstant(WandSettings.GradientAxis.class),
-                buf.readEnumConstant(WandSettings.Dither.class),
-                buf.readEnumConstant(WandSettings.Grain.class),
-                buf.readEnumConstant(WandSettings.Easing.class),
+                buf.readEnum(WandSettings.Mode.class),
+                buf.readEnum(WandSettings.GradientAxis.class),
+                buf.readEnum(WandSettings.Dither.class),
+                buf.readEnum(WandSettings.Grain.class),
+                buf.readEnum(WandSettings.Easing.class),
                 buf.readFloat(),
                 buf.readVarInt());
     }
 
     @Override
-    public CustomPayload.Id<WandSettingsPacket> getId() {
+    public CustomPacketPayload.Type<WandSettingsPacket> type() {
         return ID;
     }
 
@@ -108,8 +108,8 @@ public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAx
 //?}
 
     // Fabric runs this on the main server thread on both versions, so touching the stack is safe
-    private static void handle(ServerPlayerEntity player, WandSettingsPacket packet) {
-        ItemStack stack = player.getMainHandStack();
+    private static void handle(ServerPlayer player, WandSettingsPacket packet) {
+        ItemStack stack = player.getMainHandItem();
 
         if (!(stack.getItem() instanceof GradientWandItem)) {
             return;

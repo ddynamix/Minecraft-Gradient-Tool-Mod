@@ -1,9 +1,9 @@
 package net.tyler.gradientwand.item;
 
-import net.minecraft.item.Item;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
-import net.minecraft.util.Identifier;
+import net.minecraft.world.item.Item;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Registry;
+import net.minecraft.resources.ResourceLocation;
 import net.tyler.gradientwand.GradientWand;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
 import net.tyler.gradientwand.item.custom.WandTier;
@@ -26,7 +26,7 @@ public class ModItems {
     // The original wand, still registered so copies already sitting in a world keep loading. It is
     // deliberately not in any creative tab: the seven tiers replace it, and its sprite is gone.
     public static final Item GRADIENT_WAND = registerItem("gradient_wand",
-            new GradientWandItem(new Item.Settings().maxCount(1).fireproof(), WandTier.NETHERITE));
+            new GradientWandItem(new Item.Properties().stacksTo(1).fireResistant(), WandTier.NETHERITE));
 
     public static Item of(WandTier tier) {
         return WANDS.get(tier);
@@ -42,18 +42,18 @@ public class ModItems {
     // maxDamage and fireproof are mutually exclusive here on purpose: the netherite wand never
     // takes damage, so giving it a durability bar would leave a bar that never moves.
     private static Item registerWand(WandTier tier) {
-        Item.Settings settings = new Item.Settings().maxCount(1);
+        Item.Properties settings = new Item.Properties().stacksTo(1);
 
         if (tier.unbreakable()) {
-            settings.fireproof();
+            settings.fireResistant();
         } else {
-            settings.maxDamage(tier.durability());
+            settings.durability(tier.durability());
         }
 
         return registerItem(tier.itemId(), new GradientWandItem(settings, tier));
     }
 
     private static Item registerItem(String name, Item item) {
-        return Registry.register(Registries.ITEM, GradientWand.id(name), item);
+        return Registry.register(BuiltInRegistries.ITEM, GradientWand.id(name), item);
     }
 }

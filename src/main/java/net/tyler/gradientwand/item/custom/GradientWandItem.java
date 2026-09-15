@@ -1,30 +1,29 @@
 package net.tyler.gradientwand.item.custom;
 
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.ItemUsageContext;
-import net.minecraft.state.property.Properties;
-import net.minecraft.text.Text;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.Hand;
-import net.minecraft.util.TypedActionResult;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.ChatFormatting;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.level.Level;
 import net.tyler.gradientwand.animation.PlacementQueue;
 import net.tyler.gradientwand.core.Axis;
 import net.tyler.gradientwand.core.GradientCore;
 import net.tyler.gradientwand.core.Pos;
-import net.tyler.gradientwand.core.Vec3;
 import net.tyler.gradientwand.core.WandSettings;
 import net.tyler.gradientwand.cost.HungerCost;
 import net.tyler.gradientwand.cost.MaterialCost;
@@ -44,7 +43,7 @@ public class GradientWandItem extends Item {
 
     private final WandTier tier;
 
-    public GradientWandItem(Settings settings, WandTier tier) {
+    public GradientWandItem(Item.Properties settings, WandTier tier) {
         super(settings);
         this.tier = tier;
     }
@@ -55,7 +54,7 @@ public class GradientWandItem extends Item {
 
     // Item returns 0 here by default, which is what stops a plain Item being enchanted at a table.
     @Override
-    public int getEnchantability() {
+    public int getEnchantmentValue() {
         return tier.enchantability();
     }
 
@@ -70,62 +69,62 @@ public class GradientWandItem extends Item {
     // when you are aiming at open air, which is the normal case once a preview is on screen.
     public static void registerNoBlockBreaking() {
         AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> {
-            ItemStack stack = player.getStackInHand(hand);
+            ItemStack stack = player.getItemInHand(hand);
 
             if (!(stack.getItem() instanceof GradientWandItem)) {
-                return ActionResult.PASS;
+                return InteractionResult.PASS;
             }
 
-            return ActionResult.SUCCESS;
+            return InteractionResult.SUCCESS;
         });
     }
 
     @Override
-    public ActionResult useOnBlock(ItemUsageContext context) {
-        World world = context.getWorld();
-        PlayerEntity player = context.getPlayer();
+    public InteractionResult useOn(UseOnContext context) {
+        Level world = context.getLevel();
+        Player player = context.getPlayer();
 
-        if (!world.isClient() && player != null) {
-            ItemStack stack = context.getStack();
+        if (!world.isClientSide() && player != null) {
+            ItemStack stack = context.getItemInHand();
 
-            handleClick(player, stack, context.getHand(), context.getBlockPos().offset(context.getSide()));
+            handleClick(player, stack, context.getHand(), context.getClickedPos().relative(context.getClickedFace()));
         }
 
-        return ActionResult.success(world.isClient());
+        return InteractionResult.sidedSuccess(world.isClientSide());
     }
 
     @Override
-    public TypedActionResult<ItemStack> use(World world, PlayerEntity user, Hand hand) {
-        ItemStack stack = user.getStackInHand(hand);
+    public InteractionResultHolder<ItemStack> use(Level world, Player user, InteractionHand hand) {
+        ItemStack stack = user.getItemInHand(hand);
 
-        if (!world.isClient()) {
+        if (!world.isClientSide()) {
             if (getPointA(stack) == null) {
-                user.sendMessage(Text.literal("Right-click a block to set point A first"), true);
+                user.displayClientMessage(Component.literal("Right-click a block to set point A first"), true);
             } else {
                 handleClick(user, stack, hand, raycastForPoint(user));
             }
         }
 
-        return TypedActionResult.success(stack, world.isClient());
+        return InteractionResultHolder.sidedSuccess(stack, world.isClientSide());
     }
 
     // Shimmer while point A is saved, and whenever the wand is enchanted. The super call matters:
     // Item.hasGlint is what puts the glint on an enchanted item.
     @Override
-    public boolean hasGlint(ItemStack stack) {
-        return getPointA(stack) != null || super.hasGlint(stack);
+    public boolean isFoil(ItemStack stack) {
+        return getPointA(stack) != null || super.isFoil(stack);
     }
 
     // Stops the wand dipping out of hand every time its data changes. Fabric renamed this hook
     // when 1.20.5 replaced item NBT with components, so only the method name differs.
     //? if <1.21 {
     /*@Override
-    public boolean allowNbtUpdateAnimation(PlayerEntity player, Hand hand, ItemStack oldStack, ItemStack newStack) {
+    public boolean allowNbtUpdateAnimation(Player player, InteractionHand hand, ItemStack oldStack, ItemStack newStack) {
         return false;
     }
     *///?} else {
     @Override
-    public boolean allowComponentsUpdateAnimation(PlayerEntity player, Hand hand, ItemStack oldStack, ItemStack newStack) {
+    public boolean allowComponentsUpdateAnimation(Player player, InteractionHand hand, ItemStack oldStack, ItemStack newStack) {
         return false;
     }
     //?}
@@ -137,21 +136,21 @@ public class GradientWandItem extends Item {
     // What the wand would do if you clicked right now. Holds the real palette, which the core
     // never sees: the core works in palette indices and hands them back to be looked up here.
     public record GradientRequest(BlockPos from, BlockPos to, List<BlockState> palette,
-                                  WandSettings settings, Vec3d eye, Vec3d look, boolean anchorLeft) {
+                                  WandSettings settings, Vec3 eye, Vec3 look, boolean anchorLeft) {
     }
 
     // Both the preview and the click build the request here, so the two cannot drift apart
-    private static GradientRequest requestFrom(PlayerEntity player, BlockPos from, BlockPos to,
+    private static GradientRequest requestFrom(Player player, BlockPos from, BlockPos to,
                                                List<BlockState> palette, WandSettings settings) {
         boolean ribbon = settings.mode() == WandSettings.Mode.RIBBON;
 
         return new GradientRequest(from, to, palette, settings,
-                ribbon ? player.getEyePos() : null,
-                ribbon ? player.getRotationVec(1.0f) : null,
-                ribbon && player.isSneaking());
+                ribbon ? player.getEyePosition() : null,
+                ribbon ? player.getViewVector(1.0f) : null,
+                ribbon && player.isShiftKeyDown());
     }
 
-    public static GradientRequest requestFor(PlayerEntity player, ItemStack stack) {
+    public static GradientRequest requestFor(Player player, ItemStack stack) {
         BlockPos from = getPointA(stack);
 
         if (from == null) {
@@ -201,27 +200,27 @@ public class GradientWandItem extends Item {
         return blocks;
     }
 
-    // Logs, pillars, basalt and the like carry an axis. Properties.AXIS accepts all three values on
+    // Logs, pillars, basalt and the like carry an axis. BlockStateProperties.AXIS accepts all three values on
     // every block that has it, so this can never throw, and blocks without one fall straight
     // through. This is the only part of the grain feature that has to know what a block is.
     private static BlockState orient(BlockState state, Axis grain) {
-        if (grain == null || !state.contains(Properties.AXIS)) {
+        if (grain == null || !state.hasProperty(BlockStateProperties.AXIS)) {
             return state;
         }
 
-        return state.with(Properties.AXIS, toMc(grain));
+        return state.setValue(BlockStateProperties.AXIS, toMc(grain));
     }
 
     // Where point B ends up once the mode, sneaking and the wand's own limits have had their say
-    private static BlockPos resolveEnd(PlayerEntity player, ItemStack stack, BlockPos from,
+    private static BlockPos resolveEnd(Player player, ItemStack stack, BlockPos from,
                                        BlockPos raw, WandSettings settings) {
         return toMc(GradientCore.resolveEnd(toCore(from), toCore(raw), settings,
-                player.isSneaking(), limitFor(player, stack)));
+                player.isShiftKeyDown(), limitFor(player, stack)));
     }
 
     // The most blocks this wand could place right now. The cap belongs to the wand rather than the
     // shape, and in survival durability can bite first. Capacity raises the cap and nothing else.
-    private static long limitFor(PlayerEntity player, ItemStack stack) {
+    private static long limitFor(Player player, ItemStack stack) {
         long cap = (long) (WandTier.of(stack).maxBlocks() * ModEnchantments.capacityMultiplier(stack));
 
         if (player.isCreative()) {
@@ -235,11 +234,11 @@ public class GradientWandItem extends Item {
 
     // How many more blocks this wand can place before it breaks, or -1 when it never will
     private static int usesLeft(ItemStack stack) {
-        return stack.isDamageable() ? stack.getMaxDamage() - stack.getDamage() : -1;
+        return stack.isDamageableItem() ? stack.getMaxDamage() - stack.getDamageValue() : -1;
     }
 
     // Which of the two limits actually bit, so the message can say something useful
-    private static String limitReason(PlayerEntity player, ItemStack stack) {
+    private static String limitReason(Player player, ItemStack stack) {
         int left = usesLeft(stack);
 
         if (!player.isCreative() && left >= 0 && left < WandTier.of(stack).maxBlocks()) {
@@ -251,27 +250,27 @@ public class GradientWandItem extends Item {
 
     // After clamping, a selection can never outrun the durability, so the only warning left is
     // that this build spends the very last of it.
-    private static void warnIfWandWillBreak(PlayerEntity player, ItemStack stack, int blocks) {
+    private static void warnIfWandWillBreak(Player player, ItemStack stack, int blocks) {
         int left = usesLeft(stack);
 
         if (player.isCreative() || left < 0 || blocks < left) {
             return;
         }
 
-        player.sendMessage(Text.literal("This build uses the last of your wand, so it will break")
-                .formatted(Formatting.RED), false);
+        player.displayClientMessage(Component.literal("This build uses the last of your wand, so it will break")
+                .withStyle(ChatFormatting.RED), false);
     }
 
     // The positions that would actually change. The cost has to be based on these, not on the
     // whole plan, because occupied positions are skipped.
-    private static List<PlannedBlock> placeable(PlayerEntity player, List<PlannedBlock> planned) {
-        World world = player.getWorld();
+    private static List<PlannedBlock> placeable(Player player, List<PlannedBlock> planned) {
+        Level world = player.level();
         List<PlannedBlock> free = new ArrayList<>();
 
         for (PlannedBlock block : planned) {
             BlockPos pos = block.pos();
 
-            if (world.getBlockState(pos).isReplaceable() && world.canPlayerModifyAt(player, pos)) {
+            if (world.getBlockState(pos).canBeReplaced() && world.mayInteract(player, pos)) {
                 free.add(block);
             }
         }
@@ -279,7 +278,7 @@ public class GradientWandItem extends Item {
         return free;
     }
 
-    private static void handleClick(PlayerEntity player, ItemStack stack, Hand hand, BlockPos pos) {
+    private static void handleClick(Player player, ItemStack stack, InteractionHand hand, BlockPos pos) {
         BlockPos pointA = getPointA(stack);
 
         if (pointA == null) {
@@ -287,16 +286,16 @@ public class GradientWandItem extends Item {
 
             // A fresh seed per selection, so dithering is stable while you aim
             SettingsNbt.write(stack, SettingsNbt.read(stack)
-                    .withSeed(player.getWorld().getRandom().nextLong()));
+                    .withSeed(player.level().getRandom().nextLong()));
 
-            player.sendMessage(Text.literal("Point A set at " + pos.toShortString()), true);
+            player.displayClientMessage(Component.literal("Point A set at " + pos.toShortString()), true);
             return;
         }
 
         List<BlockState> palette = readPalette(player);
 
         if (palette.isEmpty()) {
-            player.sendMessage(Text.literal("Put some blocks in your hotbar first").formatted(Formatting.RED), true);
+            player.displayClientMessage(Component.literal("Put some blocks in your hotbar first").withStyle(ChatFormatting.RED), true);
             clearPointA(stack);
             return;
         }
@@ -304,14 +303,14 @@ public class GradientWandItem extends Item {
         // Checked before anything is spent, and only when starting a build: a build already under
         // way is allowed to empty the bar and still finish.
         if (!HungerCost.canStart(player, stack)) {
-            player.sendMessage(Text.literal("You are too hungry to build, eat something first")
-                    .formatted(Formatting.RED), true);
+            player.displayClientMessage(Component.literal("You are too hungry to build, eat something first")
+                    .withStyle(ChatFormatting.RED), true);
             clearPointA(stack);
             return;
         }
 
         WandSettings settings = SettingsNbt.read(stack);
-        BlockPos wanted = toMc(GradientCore.shapeEnd(toCore(pointA), toCore(pos), settings, player.isSneaking()));
+        BlockPos wanted = toMc(GradientCore.shapeEnd(toCore(pointA), toCore(pos), settings, player.isShiftKeyDown()));
         BlockPos end = resolveEnd(player, stack, pointA, pos, settings);
         long size = GradientCore.sizeOf(toCore(pointA), toCore(end), settings);
         long limit = limitFor(player, stack);
@@ -319,8 +318,8 @@ public class GradientWandItem extends Item {
         // Shortening the line cannot rescue a ribbon whose width alone is over the limit, so that
         // is the one selection still worth refusing, and the message says what would help
         if (size > limit) {
-            player.sendMessage(Text.literal("A ribbon " + settings.width() + " wide needs " + size
-                    + " blocks and this wand can manage " + limit).formatted(Formatting.RED), true);
+            player.displayClientMessage(Component.literal("A ribbon " + settings.width() + " wide needs " + size
+                    + " blocks and this wand can manage " + limit).withStyle(ChatFormatting.RED), true);
             clearPointA(stack);
             return;
         }
@@ -346,7 +345,7 @@ public class GradientWandItem extends Item {
         }
 
         if (!end.equals(wanted)) {
-            player.sendMessage(Text.literal("Stretched as far as this wand reaches: "
+            player.displayClientMessage(Component.literal("Stretched as far as this wand reaches: "
                     + free.size() + " blocks, " + limitReason(player, stack)), true);
         }
 
@@ -359,14 +358,14 @@ public class GradientWandItem extends Item {
     }
 
     // The blocks in the hotbar, left to right. Anything that is not a block is skipped.
-    private static List<BlockState> readPalette(PlayerEntity player) {
+    private static List<BlockState> readPalette(Player player) {
         List<BlockState> palette = new ArrayList<>();
 
-        for (int slot = 0; slot < PlayerInventory.getHotbarSize(); slot++) {
-            ItemStack slotStack = player.getInventory().getStack(slot);
+        for (int slot = 0; slot < Inventory.getSelectionSize(); slot++) {
+            ItemStack slotStack = player.getInventory().getItem(slot);
 
             if (slotStack.getItem() instanceof BlockItem blockItem) {
-                palette.add(blockItem.getBlock().getDefaultState());
+                palette.add(blockItem.getBlock().defaultBlockState());
             }
         }
 
@@ -374,23 +373,23 @@ public class GradientWandItem extends Item {
     }
 
     // Works out which position you are looking at, up to AIR_RANGE blocks away
-    private static BlockPos raycastForPoint(PlayerEntity player) {
-        HitResult hit = player.raycast(AIR_RANGE, 1.0f, false);
+    private static BlockPos raycastForPoint(Player player) {
+        HitResult hit = player.pick(AIR_RANGE, 1.0f, false);
 
         if (hit.getType() == HitResult.Type.BLOCK && hit instanceof BlockHitResult blockHit) {
-            return blockHit.getBlockPos().offset(blockHit.getSide());
+            return blockHit.getBlockPos().relative(blockHit.getDirection());
         }
 
-        return BlockPos.ofFloored(hit.getPos());
+        return BlockPos.containing(hit.getLocation());
     }
 
-    public static void cancelSelection(PlayerEntity player, ItemStack stack) {
+    public static void cancelSelection(Player player, ItemStack stack) {
         if (getPointA(stack) == null) {
             return;
         }
 
         clearPointA(stack);
-        player.sendMessage(Text.literal("Selection cleared"), true);
+        player.displayClientMessage(Component.literal("Selection cleared"), true);
     }
 
     // Point A is stored alongside the settings, so all the version-specific persistence lives in
@@ -419,8 +418,8 @@ public class GradientWandItem extends Item {
     }
 
     // Null for every mode but ribbon, where the core reads the player's eye and facing
-    private static Vec3 toCore(Vec3d vec) {
-        return vec == null ? null : new Vec3(vec.x, vec.y, vec.z);
+    private static net.tyler.gradientwand.core.Vec3 toCore(Vec3 vec) {
+        return vec == null ? null : new net.tyler.gradientwand.core.Vec3(vec.x, vec.y, vec.z);
     }
 
     private static Direction.Axis toMc(Axis axis) {

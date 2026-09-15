@@ -2,16 +2,16 @@ package net.tyler.gradientwand.client;
 
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.RenderType;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.phys.Vec3;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
 //? if <1.21 {
 /*import org.joml.Matrix3f;
@@ -46,13 +46,13 @@ public class GradientPreviewRenderer {
     }
 
     private static void render(WorldRenderContext context) {
-        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        LocalPlayer player = Minecraft.getInstance().player;
 
         if (player == null) {
             return;
         }
 
-        ItemStack stack = player.getMainHandStack();
+        ItemStack stack = player.getMainHandItem();
 
         if (!(stack.getItem() instanceof GradientWandItem)) {
             return;
@@ -75,37 +75,37 @@ public class GradientPreviewRenderer {
             return;
         }
 
-        MatrixStack matrices = context.matrixStack();
-        Vec3d camera = context.camera().getPos();
-        VertexConsumer lines = context.consumers().getBuffer(RenderLayer.getLines());
+        PoseStack matrices = context.matrixStack();
+        Vec3 camera = context.camera().getPosition();
+        VertexConsumer lines = context.consumers().getBuffer(RenderType.lines());
 
-        matrices.push();
+        matrices.pushPose();
         matrices.translate(-camera.x, -camera.y, -camera.z);
 
-        MatrixStack.Entry entry = matrices.peek();
+        PoseStack.Pose entry = matrices.last();
 
-        // 1.21 changed both halves of this: vertex and normal take the whole MatrixStack.Entry
+        // 1.21 changed both halves of this: vertex and normal take the whole PoseStack.Pose
         // rather than the position and normal matrices, and next() is gone because a vertex is
         // finished as soon as its attributes are written.
         //? if <1.21 {
-        /*Matrix4f position = entry.getPositionMatrix();
-        Matrix3f normal = entry.getNormalMatrix();
+        /*Matrix4f position = entry.pose();
+        Matrix3f normal = entry.normal();
 
         for (PreviewEdge edge : cachedEdges) {
             int dx = edge.axis() == Direction.Axis.X ? 1 : 0;
             int dy = edge.axis() == Direction.Axis.Y ? 1 : 0;
             int dz = edge.axis() == Direction.Axis.Z ? 1 : 0;
 
-            // RenderLayer.getLines() wants a position, a colour and a normal on every vertex
+            // RenderType.lines() wants a position, a colour and a normal on every vertex
             lines.vertex(position, edge.x(), edge.y(), edge.z())
                     .color(edge.red(), edge.green(), edge.blue(), ALPHA)
                     .normal(normal, dx, dy, dz)
-                    .next();
+                    .endVertex();
 
             lines.vertex(position, edge.x() + dx, edge.y() + dy, edge.z() + dz)
                     .color(edge.red(), edge.green(), edge.blue(), ALPHA)
                     .normal(normal, dx, dy, dz)
-                    .next();
+                    .endVertex();
         }
         *///?} else {
         for (PreviewEdge edge : cachedEdges) {
@@ -113,23 +113,23 @@ public class GradientPreviewRenderer {
             int dy = edge.axis() == Direction.Axis.Y ? 1 : 0;
             int dz = edge.axis() == Direction.Axis.Z ? 1 : 0;
 
-            // RenderLayer.getLines() wants a position, a colour and a normal on every vertex
-            lines.vertex(entry, edge.x(), edge.y(), edge.z())
-                    .color(edge.red(), edge.green(), edge.blue(), ALPHA)
-                    .normal(entry, dx, dy, dz);
+            // RenderType.lines() wants a position, a colour and a normal on every vertex
+            lines.addVertex(entry, edge.x(), edge.y(), edge.z())
+                    .setColor(edge.red(), edge.green(), edge.blue(), ALPHA)
+                    .setNormal(entry, dx, dy, dz);
 
-            lines.vertex(entry, edge.x() + dx, edge.y() + dy, edge.z() + dz)
-                    .color(edge.red(), edge.green(), edge.blue(), ALPHA)
-                    .normal(entry, dx, dy, dz);
+            lines.addVertex(entry, edge.x() + dx, edge.y() + dy, edge.z() + dz)
+                    .setColor(edge.red(), edge.green(), edge.blue(), ALPHA)
+                    .setNormal(entry, dx, dy, dz);
         }
         //?}
 
-        matrices.pop();
+        matrices.popPose();
     }
 
     // Turns the planned blocks into a deduplicated set of edges: faces buried inside the shape
     // are skipped, and an edge two blocks share is only stored once.
-    private static List<PreviewEdge> buildEdges(List<GradientWandItem.PlannedBlock> planned, ClientWorld world) {
+    private static List<PreviewEdge> buildEdges(List<GradientWandItem.PlannedBlock> planned, ClientLevel world) {
         Set<BlockPos> filled = new HashSet<>();
 
         for (GradientWandItem.PlannedBlock block : planned) {
@@ -141,11 +141,11 @@ public class GradientPreviewRenderer {
         for (GradientWandItem.PlannedBlock block : planned) {
             BlockPos pos = block.pos();
 
-            if (!world.getBlockState(pos).isReplaceable()) {
+            if (!world.getBlockState(pos).canBeReplaced()) {
                 continue;
             }
 
-            int rgb = block.state().getMapColor(world, pos).color;
+            int rgb = block.state().getMapColor(world, pos).col;
 
             if (rgb == 0) {
                 rgb = 0xFFFFFF;
@@ -156,7 +156,7 @@ public class GradientPreviewRenderer {
             float blue = (rgb & 0xFF) / 255.0f;
 
             for (Direction direction : Direction.values()) {
-                if (filled.contains(pos.offset(direction))) {
+                if (filled.contains(pos.relative(direction))) {
                     continue; // this face is buried against another planned block
                 }
 

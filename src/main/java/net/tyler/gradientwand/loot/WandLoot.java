@@ -2,39 +2,39 @@ package net.tyler.gradientwand.loot;
 
 //? if <1.21 {
 /*import net.fabricmc.fabric.api.loot.v2.LootTableEvents;
-import net.minecraft.enchantment.Enchantment;
-import net.minecraft.loot.function.SetNbtLootFunction;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.level.storage.loot.functions.SetNbtFunction;
 *///?} else {
 import net.fabricmc.fabric.api.loot.v3.LootTableEvents;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.ItemEnchantmentsComponent;
-import net.minecraft.enchantment.Enchantment;
-import net.minecraft.loot.function.SetComponentsLootFunction;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.registry.RegistryWrapper;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.village.TradedItem;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.level.storage.loot.functions.SetComponentsFunction;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.Holder;
+import net.minecraft.world.item.trading.ItemCost;
 
 import java.util.Optional;
 //?}
 
 import net.fabricmc.fabric.api.object.builder.v1.trade.TradeOfferHelper;
-import net.minecraft.enchantment.EnchantmentLevelEntry;
-import net.minecraft.entity.Entity;
-import net.minecraft.item.EnchantedBookItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.loot.LootPool;
-import net.minecraft.loot.condition.RandomChanceLootCondition;
-import net.minecraft.loot.entry.ItemEntry;
-import net.minecraft.loot.entry.LeafEntry;
-import net.minecraft.loot.provider.number.ConstantLootNumberProvider;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.random.Random;
-import net.minecraft.village.TradeOffer;
-import net.minecraft.village.TradeOffers;
-import net.minecraft.village.VillagerProfession;
+import net.minecraft.world.item.enchantment.EnchantmentInstance;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.EnchantedBookItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.storage.loot.LootPool;
+import net.minecraft.world.level.storage.loot.predicates.LootItemRandomChanceCondition;
+import net.minecraft.world.level.storage.loot.entries.LootItem;
+import net.minecraft.world.level.storage.loot.entries.LootPoolSingletonContainer;
+import net.minecraft.world.level.storage.loot.providers.number.ConstantValue;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.item.trading.MerchantOffer;
+import net.minecraft.world.entity.npc.VillagerTrades;
+import net.minecraft.world.entity.npc.VillagerProfession;
 import net.tyler.gradientwand.GradientWand;
 import net.tyler.gradientwand.enchantment.ModEnchantments;
 
@@ -43,13 +43,13 @@ import java.util.Set;
 // These enchantments never turn up at an enchanting table, so without this there would be no way
 // to find the books in survival at all. Two routes: chest loot, and a master librarian.
 //
-// 1.21 made enchantments data driven, so the mod holds RegistryKeys rather than Enchantment
+// 1.21 made enchantments data driven, so the mod holds Registries rather than Enchantment
 // instances there and has to resolve an entry before it can build a book. The loot API's v3
 // MODIFY event supplies exactly the registry lookup needed for that, which is why this version
 // uses v3 while 1.20.1 stays on v2.
 public class WandLoot {
 
-    private static final Set<Identifier> CHESTS = Set.of(
+    private static final Set<ResourceLocation> CHESTS = Set.of(
             GradientWand.id("minecraft", "chests/stronghold_library"),
             GradientWand.id("minecraft", "chests/village/village_mason"),
             GradientWand.id("minecraft", "chests/woodland_mansion"),
@@ -79,14 +79,14 @@ public class WandLoot {
 
     //? if <1.21 {
     /*private static void registerChestLoot() {
-        // v2 on this version: five parameters, and the table is named by a plain Identifier
+        // v2 on this version: five parameters, and the table is named by a plain ResourceLocation
         LootTableEvents.MODIFY.register((resourceManager, lootManager, tableId, builder, source) -> {
             if (!source.isBuiltin() || !CHESTS.contains(tableId)) {
                 return;
             }
 
-            builder.pool(bookPool(ModEnchantments.CAPACITY));
-            builder.pool(bookPool(ModEnchantments.STAMINA));
+            builder.withPool(bookPool(ModEnchantments.CAPACITY));
+            builder.withPool(bookPool(ModEnchantments.STAMINA));
         });
     }
 
@@ -98,36 +98,36 @@ public class WandLoot {
     }
 
     private static LootPool.Builder bookPool(Enchantment enchantment) {
-        return LootPool.builder()
-                .rolls(ConstantLootNumberProvider.create(1.0f))
-                .conditionally(RandomChanceLootCondition.builder(CHEST_CHANCE))
-                .with(levelled(enchantment, 1, WEIGHT_LEVEL_1))
-                .with(levelled(enchantment, 2, WEIGHT_LEVEL_2))
-                .with(levelled(enchantment, 3, WEIGHT_LEVEL_3));
+        return LootPool.lootPool()
+                .setRolls(ConstantValue.exactly(1.0f))
+                .when(LootItemRandomChanceCondition.randomChance(CHEST_CHANCE))
+                .add(levelled(enchantment, 1, WEIGHT_LEVEL_1))
+                .add(levelled(enchantment, 2, WEIGHT_LEVEL_2))
+                .add(levelled(enchantment, 3, WEIGHT_LEVEL_3));
     }
 
     // Each level is its own weighted entry, so exactly one is chosen. Stacking three SetNbt
     // functions on a single entry would leave whichever applied last and every book would be
     // level 3. The item is ENCHANTED_BOOK, not BOOK: an anvil only reads the former.
-    private static LeafEntry.Builder<?> levelled(Enchantment enchantment, int level, int weight) {
-        ItemStack book = EnchantedBookItem.forEnchantment(new EnchantmentLevelEntry(enchantment, level));
+    private static LootPoolSingletonContainer.Builder<?> levelled(Enchantment enchantment, int level, int weight) {
+        ItemStack book = EnchantedBookItem.createForEnchantment(new EnchantmentInstance(enchantment, level));
 
-        return ItemEntry.builder(Items.ENCHANTED_BOOK)
-                .weight(weight)
-                .apply(SetNbtLootFunction.builder(book.getOrCreateNbt()));
+        return LootItem.lootTableItem(Items.ENCHANTED_BOOK)
+                .setWeight(weight)
+                .apply(SetNbtFunction.setTag(book.getOrCreateTag()));
     }
 
     // Emeralds plus a plain book for an enchanted one, the same shape as vanilla's own librarian
     // book trades. The level is rolled when the villager generates the offer, so cycling a
     // librarian for a particular level works exactly as players already expect.
-    private record BookTrade(Enchantment enchantment) implements TradeOffers.Factory {
+    private record BookTrade(Enchantment enchantment) implements VillagerTrades.ItemListing {
 
         @Override
-        public TradeOffer create(Entity entity, Random random) {
+        public MerchantOffer getOffer(Entity entity, RandomSource random) {
             int level = 1 + random.nextInt(ModEnchantments.MAX_LEVEL);
-            ItemStack book = EnchantedBookItem.forEnchantment(new EnchantmentLevelEntry(enchantment, level));
+            ItemStack book = EnchantedBookItem.createForEnchantment(new EnchantmentInstance(enchantment, level));
 
-            return new TradeOffer(
+            return new MerchantOffer(
                     new ItemStack(Items.EMERALD, priceFor(level)),
                     new ItemStack(Items.BOOK),
                     book,
@@ -138,18 +138,18 @@ public class WandLoot {
     }
     *///?} else {
     private static void registerChestLoot() {
-        // v3 on this version: the table is named by a RegistryKey, and the fourth parameter is the
+        // v3 on this version: the table is named by a ResourceKey, and the fourth parameter is the
         // registry lookup. That lookup is the whole reason for using v3 here: an enchantment is a
         // dynamic registry entry now, and a loot pool is built long before any world exists.
         LootTableEvents.MODIFY.register((tableKey, builder, source, registries) -> {
-            if (!source.isBuiltin() || !CHESTS.contains(tableKey.getValue())) {
+            if (!source.isBuiltin() || !CHESTS.contains(tableKey.location())) {
                 return;
             }
 
-            RegistryWrapper.Impl<Enchantment> lookup = registries.getWrapperOrThrow(RegistryKeys.ENCHANTMENT);
+            HolderLookup.RegistryLookup<Enchantment> lookup = registries.lookupOrThrow(Registries.ENCHANTMENT);
 
-            builder.pool(bookPool(lookup.getOrThrow(ModEnchantments.CAPACITY)));
-            builder.pool(bookPool(lookup.getOrThrow(ModEnchantments.STAMINA)));
+            builder.withPool(bookPool(lookup.getOrThrow(ModEnchantments.CAPACITY)));
+            builder.withPool(bookPool(lookup.getOrThrow(ModEnchantments.STAMINA)));
         });
     }
 
@@ -160,48 +160,47 @@ public class WandLoot {
         });
     }
 
-    private static LootPool.Builder bookPool(RegistryEntry<Enchantment> enchantment) {
-        return LootPool.builder()
-                .rolls(ConstantLootNumberProvider.create(1.0f))
-                .conditionally(RandomChanceLootCondition.builder(CHEST_CHANCE))
-                .with(levelled(enchantment, 1, WEIGHT_LEVEL_1))
-                .with(levelled(enchantment, 2, WEIGHT_LEVEL_2))
-                .with(levelled(enchantment, 3, WEIGHT_LEVEL_3));
+    private static LootPool.Builder bookPool(Holder<Enchantment> enchantment) {
+        return LootPool.lootPool()
+                .setRolls(ConstantValue.exactly(1.0f))
+                .when(LootItemRandomChanceCondition.randomChance(CHEST_CHANCE))
+                .add(levelled(enchantment, 1, WEIGHT_LEVEL_1))
+                .add(levelled(enchantment, 2, WEIGHT_LEVEL_2))
+                .add(levelled(enchantment, 3, WEIGHT_LEVEL_3));
     }
 
     // forEnchantment already builds a correct enchanted book: ItemStack.addEnchantment routes
     // through EnchantmentHelper, which picks STORED_ENCHANTMENTS for a book. So the component is
     // read back off that book rather than assembled by hand.
-    private static LeafEntry.Builder<?> levelled(RegistryEntry<Enchantment> enchantment, int level, int weight) {
-        ItemStack book = EnchantedBookItem.forEnchantment(new EnchantmentLevelEntry(enchantment, level));
+    private static LootPoolSingletonContainer.Builder<?> levelled(Holder<Enchantment> enchantment, int level, int weight) {
+        ItemStack book = EnchantedBookItem.createForEnchantment(new EnchantmentInstance(enchantment, level));
 
-        ItemEnchantmentsComponent stored = book.getOrDefault(
-                DataComponentTypes.STORED_ENCHANTMENTS, ItemEnchantmentsComponent.DEFAULT);
+        ItemEnchantments stored = book.getOrDefault(
+                DataComponents.STORED_ENCHANTMENTS, ItemEnchantments.EMPTY);
 
-        return ItemEntry.builder(Items.ENCHANTED_BOOK)
-                .weight(weight)
-                .apply(SetComponentsLootFunction.builder(DataComponentTypes.STORED_ENCHANTMENTS, stored));
+        return LootItem.lootTableItem(Items.ENCHANTED_BOOK)
+                .setWeight(weight)
+                .apply(SetComponentsFunction.setComponent(DataComponents.STORED_ENCHANTMENTS, stored));
     }
 
     // The key is resolved per offer rather than up front: a villager always has a world, so the
     // registry is reachable here even though it is not when the trade list is registered.
-    private record BookTrade(RegistryKey<Enchantment> key) implements TradeOffers.Factory {
+    private record BookTrade(ResourceKey<Enchantment> key) implements VillagerTrades.ItemListing {
 
         @Override
-        public TradeOffer create(Entity entity, Random random) {
+        public MerchantOffer getOffer(Entity entity, RandomSource random) {
             int level = 1 + random.nextInt(ModEnchantments.MAX_LEVEL);
 
-            RegistryEntry<Enchantment> enchantment = entity.getWorld()
-                    .getRegistryManager()
-                    .get(RegistryKeys.ENCHANTMENT)
-                    .getEntry(key)
-                    .orElseThrow();
+            Holder<Enchantment> enchantment = entity.level()
+                    .registryAccess()
+                    .registryOrThrow(Registries.ENCHANTMENT)
+                    .getHolderOrThrow(key);
 
-            ItemStack book = EnchantedBookItem.forEnchantment(new EnchantmentLevelEntry(enchantment, level));
+            ItemStack book = EnchantedBookItem.createForEnchantment(new EnchantmentInstance(enchantment, level));
 
-            return new TradeOffer(
-                    new TradedItem(Items.EMERALD, priceFor(level)),
-                    Optional.of(new TradedItem(Items.BOOK)),
+            return new MerchantOffer(
+                    new ItemCost(Items.EMERALD, priceFor(level)),
+                    Optional.of(new ItemCost(Items.BOOK)),
                     book,
                     12,
                     10,

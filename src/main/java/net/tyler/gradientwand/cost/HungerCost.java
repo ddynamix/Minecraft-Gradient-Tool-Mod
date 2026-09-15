@@ -1,7 +1,7 @@
 package net.tyler.gradientwand.cost;
 
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.tyler.gradientwand.enchantment.ModEnchantments;
 
 // Building is work, so it costs hunger. All the rules live here rather than being spread between
@@ -20,22 +20,22 @@ public class HungerCost {
 
     // Exhaustion rather than a direct food change, so saturation soaks it up first exactly as it
     // does for sprinting or mining. addExhaustion already ignores creative players.
-    public static void charge(PlayerEntity player, ItemStack wand) {
+    public static void charge(Player player, ItemStack wand) {
         float factor = ModEnchantments.hungerMultiplier(wand);
 
         if (factor <= 0.0f) {
             return;
         }
 
-        player.addExhaustion(PER_BLOCK * factor);
+        player.causeFoodExhaustion(PER_BLOCK * factor);
     }
 
     // A build that empties the bar part way is still allowed to finish: it is the next one that
     // gets stopped, which is why this is only ever asked before a build starts. A wand that costs
     // no hunger at all skips the gate, because refusing a free action would only be confusing.
-    public static boolean canStart(PlayerEntity player, ItemStack wand) {
+    public static boolean canStart(Player player, ItemStack wand) {
         return player.isCreative()
                 || ModEnchantments.hungerMultiplier(wand) <= 0.0f
-                || player.getHungerManager().getFoodLevel() >= MINIMUM_FOOD;
+                || player.getFoodData().getFoodLevel() >= MINIMUM_FOOD;
     }
 }

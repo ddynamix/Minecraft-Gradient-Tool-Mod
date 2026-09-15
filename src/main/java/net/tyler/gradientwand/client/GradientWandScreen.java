@@ -1,14 +1,14 @@
 package net.tyler.gradientwand.client;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.CyclingButtonWidget;
-import net.minecraft.client.gui.widget.SliderWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.screen.ScreenTexts;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.CycleButton;
+import net.minecraft.client.gui.components.AbstractSliderButton;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.CommonComponents;
+import net.minecraft.network.chat.Component;
 import net.tyler.gradientwand.core.WandSettings;
 import net.tyler.gradientwand.network.WandRedoPacket;
 import net.tyler.gradientwand.network.WandSettingsPacket;
@@ -36,7 +36,7 @@ public class GradientWandScreen extends Screen {
     private int contentTop;
 
     public GradientWandScreen(WandSettings settings, int maxWidth) {
-        super(Text.literal("Gradient Wand"));
+        super(Component.literal("Gradient Wand"));
         this.settings = settings;
         this.maxWidth = maxWidth;
     }
@@ -56,89 +56,89 @@ public class GradientWandScreen extends Screen {
         boolean ribbon = settings.mode() == WandSettings.Mode.RIBBON;
         int modeWidth = ribbon ? WIDGET_WIDTH - WIDTH_BOX - 4 : WIDGET_WIDTH;
 
-        addDrawableChild(CyclingButtonWidget.<WandSettings.Mode>builder(GradientWandScreen::label)
-                .values(WandSettings.Mode.values())
-                .initially(settings.mode())
-                .build(x, y, modeWidth, WIDGET_HEIGHT, Text.literal("Shape"),
+        addRenderableWidget(CycleButton.<WandSettings.Mode>builder(GradientWandScreen::label)
+                .withValues(WandSettings.Mode.values())
+                .withInitialValue(settings.mode())
+                .create(x, y, modeWidth, WIDGET_HEIGHT, Component.literal("Shape"),
                         (button, value) -> {
                             apply(settings.withMode(value));
 
                             // The width box only belongs to ribbons, so lay the screen out again
-                            clearAndInit();
+                            rebuildWidgets();
                         }));
 
         if (ribbon) {
-            TextFieldWidget widthField = new TextFieldWidget(this.textRenderer,
-                    x + WIDGET_WIDTH - WIDTH_BOX, y, WIDTH_BOX, WIDGET_HEIGHT, Text.literal("Width"));
+            EditBox widthField = new EditBox(this.font,
+                    x + WIDGET_WIDTH - WIDTH_BOX, y, WIDTH_BOX, WIDGET_HEIGHT, Component.literal("Width"));
 
             widthField.setMaxLength(String.valueOf(maxWidth).length());
-            widthField.setTextPredicate(text -> text.chars().allMatch(Character::isDigit));
+            widthField.setFilter(text -> text.chars().allMatch(Character::isDigit));
 
             // Set the text before attaching the listener, or opening the screen sends a packet
-            widthField.setText(String.valueOf(settings.width()));
-            widthField.setChangedListener(text -> {
+            widthField.setValue(String.valueOf(settings.width()));
+            widthField.setResponder(text -> {
                 if (!text.isEmpty()) {
                     apply(settings.withWidth(Math.min(Integer.parseInt(text), maxWidth)));
                 }
             });
 
-            addDrawableChild(widthField);
+            addRenderableWidget(widthField);
         }
 
-        addDrawableChild(CyclingButtonWidget.<WandSettings.GradientAxis>builder(GradientWandScreen::label)
-                .values(WandSettings.GradientAxis.values())
-                .initially(settings.axis())
-                .build(x, y + SPACING, WIDGET_WIDTH, WIDGET_HEIGHT, Text.literal("Gradient axis"),
+        addRenderableWidget(CycleButton.<WandSettings.GradientAxis>builder(GradientWandScreen::label)
+                .withValues(WandSettings.GradientAxis.values())
+                .withInitialValue(settings.axis())
+                .create(x, y + SPACING, WIDGET_WIDTH, WIDGET_HEIGHT, Component.literal("Gradient axis"),
                         (button, value) -> apply(settings.withAxis(value))));
 
         // Sits next to the gradient axis: both are about how the blend is spread along the run
-        addDrawableChild(CyclingButtonWidget.<WandSettings.Easing>builder(GradientWandScreen::label)
-                .values(WandSettings.Easing.values())
-                .initially(settings.easing())
-                .build(x, y + SPACING * 2, WIDGET_WIDTH, WIDGET_HEIGHT, Text.literal("Easing"),
+        addRenderableWidget(CycleButton.<WandSettings.Easing>builder(GradientWandScreen::label)
+                .withValues(WandSettings.Easing.values())
+                .withInitialValue(settings.easing())
+                .create(x, y + SPACING * 2, WIDGET_WIDTH, WIDGET_HEIGHT, Component.literal("Easing"),
                         (button, value) -> apply(settings.withEasing(value))));
 
-        addDrawableChild(CyclingButtonWidget.<WandSettings.Grain>builder(GradientWandScreen::label)
-                .values(WandSettings.Grain.values())
-                .initially(settings.grain())
-                .build(x, y + SPACING * 3, WIDGET_WIDTH, WIDGET_HEIGHT, Text.literal("Grain"),
+        addRenderableWidget(CycleButton.<WandSettings.Grain>builder(GradientWandScreen::label)
+                .withValues(WandSettings.Grain.values())
+                .withInitialValue(settings.grain())
+                .create(x, y + SPACING * 3, WIDGET_WIDTH, WIDGET_HEIGHT, Component.literal("Grain"),
                         (button, value) -> apply(settings.withGrain(value))));
 
-        addDrawableChild(CyclingButtonWidget.<WandSettings.Dither>builder(GradientWandScreen::label)
-                .values(WandSettings.Dither.values())
-                .initially(settings.dither())
-                .build(x, y + SPACING * 4, WIDGET_WIDTH, WIDGET_HEIGHT, Text.literal("Dither"),
+        addRenderableWidget(CycleButton.<WandSettings.Dither>builder(GradientWandScreen::label)
+                .withValues(WandSettings.Dither.values())
+                .withInitialValue(settings.dither())
+                .create(x, y + SPACING * 4, WIDGET_WIDTH, WIDGET_HEIGHT, Component.literal("Dither"),
                         (button, value) -> apply(settings.withDither(value))));
 
-        addDrawableChild(new JitterSlider(x, y + SPACING * 5, WIDGET_WIDTH, WIDGET_HEIGHT, settings.jitter()));
+        addRenderableWidget(new JitterSlider(x, y + SPACING * 5, WIDGET_WIDTH, WIDGET_HEIGHT, settings.jitter()));
 
         int half = (WIDGET_WIDTH - 4) / 2;
         int buttonY = y + SPACING * SETTING_ROWS + 8;
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("Undo"),
+        addRenderableWidget(Button.builder(Component.literal("Undo"),
                         button -> ClientPlayNetworking.send(new WandUndoPacket()))
-                .dimensions(x, buttonY, half, WIDGET_HEIGHT)
+                .bounds(x, buttonY, half, WIDGET_HEIGHT)
                 .build());
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("Redo"),
+        addRenderableWidget(Button.builder(Component.literal("Redo"),
                         button -> ClientPlayNetworking.send(new WandRedoPacket()))
-                .dimensions(x + half + 4, buttonY, half, WIDGET_HEIGHT)
+                .bounds(x + half + 4, buttonY, half, WIDGET_HEIGHT)
                 .build());
 
-        addDrawableChild(ButtonWidget.builder(ScreenTexts.DONE, button -> close())
-                .dimensions(x, buttonY + SPACING, WIDGET_WIDTH, WIDGET_HEIGHT)
+        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
+                .bounds(x, buttonY + SPACING, WIDGET_WIDTH, WIDGET_HEIGHT)
                 .build());
     }
 
     // Enum names become button labels, so EAST_WEST has to come out as "East/West"
-    private static Text label(Enum<?> value) {
+    private static Component label(Enum<?> value) {
         String[] parts = value.name().toLowerCase().split("_");
 
         for (int i = 0; i < parts.length; i++) {
             parts[i] = parts[i].substring(0, 1).toUpperCase() + parts[i].substring(1);
         }
 
-        return Text.literal(String.join("/", parts));
+        return Component.literal(String.join("/", parts));
     }
 
     // Keep a local copy so the screen stays responsive, and tell the server what changed
@@ -150,7 +150,7 @@ public class GradientWandScreen extends Screen {
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
         // 1.21 passes the mouse position and tick delta through to the background renderer
         //? if <1.21 {
         /*renderBackground(context);
@@ -158,7 +158,7 @@ public class GradientWandScreen extends Screen {
         renderBackground(context, mouseX, mouseY, delta);
         //?}
 
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title,
+        context.drawCenteredString(this.font, this.title,
                 this.width / 2, contentTop - 16, 0xFFFFFF);
 
         super.render(context, mouseX, mouseY, delta);
@@ -166,21 +166,21 @@ public class GradientWandScreen extends Screen {
 
     // Leave the world running so the preview keeps updating behind the menu
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 
-    private class JitterSlider extends SliderWidget {
+    private class JitterSlider extends AbstractSliderButton {
 
         JitterSlider(int x, int y, int width, int height, float jitter) {
-            super(x, y, width, height, Text.empty(), jitter);
+            super(x, y, width, height, Component.empty(), jitter);
 
             updateMessage();
         }
 
         @Override
         protected void updateMessage() {
-            setMessage(Text.literal(String.format("Blend: %.2f", this.value)));
+            setMessage(Component.literal(String.format("Blend: %.2f", this.value)));
         }
 
         @Override

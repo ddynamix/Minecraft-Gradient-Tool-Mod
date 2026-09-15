@@ -27,10 +27,11 @@ repositories {
 dependencies {
     minecraft("com.mojang:minecraft:${sc.current.version}")
 
-    // Yarn, pinned per version in stonecutter.properties.toml. Mojang mappings were tried first
-    // but left the compile classpath without a Minecraft jar under loom-back-compat; Yarn is
-    // fully supported on Fabric for every target here and needs no source changes.
-    mappings("net.fabricmc:yarn:${property("deps.yarn_mappings")}:v2")
+    // Mojang official names, via the helper loom-back-compat provides. NeoForge builds against
+    // these, and Yarn is unusable there: architectury-loom issue 230 reports unfixable mapping
+    // collisions at exactly yarn 1.21.1+build.3 against NeoForge 21.1.x. Sharing one source tree
+    // across both loaders therefore means Mojang names on the Fabric side too.
+    loomx.applyMojangMappings()
 
     modImplementation("net.fabricmc:fabric-loader:${property("deps.fabric_loader")}")
     modImplementation("net.fabricmc.fabric-api:fabric-api:${property("deps.fabric_api")}")
@@ -50,6 +51,10 @@ java {
 
 tasks.withType<JavaCompile>().configureEach {
     options.release = requiredJava.majorVersion.toInt()
+
+    // javac stops listing after 100 and Gradle caps at 200, which hides the true error count
+    // during the Yarn to Mojang migration. Harmless once the tree is green again.
+    options.compilerArgs.addAll(listOf("-Xmaxerrs", "10000"))
 }
 
 tasks.test {

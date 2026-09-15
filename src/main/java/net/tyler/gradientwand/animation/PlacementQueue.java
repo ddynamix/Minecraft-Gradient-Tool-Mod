@@ -1,22 +1,22 @@
 package net.tyler.gradientwand.animation;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 // Only LivingEntity is version-specific here: it is where 1.21 declares getSlotForHand.
-// PlayerEntity stays outside the directive, or the 1.20.1 render imports it twice.
+// Player stays outside the directive, or the 1.20.1 render imports it twice.
 //? if >=1.21 {
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.world.entity.LivingEntity;
 //?}
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.sound.BlockSoundGroup;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.SoundType;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.network.chat.Component;
+import net.minecraft.ChatFormatting;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
 import net.tyler.gradientwand.core.GradientCore;
 import net.tyler.gradientwand.cost.HungerCost;
 import net.tyler.gradientwand.cost.MaterialCost;
@@ -42,10 +42,10 @@ public class PlacementQueue {
 
     private static class Animation {
 
-        private final PlayerEntity player;
-        private final World world;
+        private final Player player;
+        private final Level world;
         private final ItemStack wand;
-        private final Hand hand;
+        private final InteractionHand hand;
         private final BlockPos origin;
         private final List<GradientWandItem.PlannedBlock> blocks;
         private final boolean paid;
@@ -56,10 +56,10 @@ public class PlacementQueue {
         private int index;
         private boolean broken;
 
-        private Animation(PlayerEntity player, ItemStack wand, Hand hand, BlockPos origin,
+        private Animation(Player player, ItemStack wand, InteractionHand hand, BlockPos origin,
                           List<GradientWandItem.PlannedBlock> blocks, boolean paid) {
             this.player = player;
-            this.world = player.getWorld();
+            this.world = player.level();
             this.wand = wand;
             this.hand = hand;
             this.origin = origin;
@@ -75,7 +75,7 @@ public class PlacementQueue {
     // "paid" is recorded here rather than checked at the end, so switching game mode part way
     // through cannot earn free blocks or refund ones that were never charged for. The wand stack
     // is held by reference, which is what lets a break part way through stop the wave.
-    public static void start(PlayerEntity player, ItemStack wand, Hand hand, BlockPos origin,
+    public static void start(Player player, ItemStack wand, InteractionHand hand, BlockPos origin,
                              List<GradientWandItem.PlannedBlock> blocks, boolean paid) {
         if (blocks.isEmpty()) {
             return;
@@ -91,7 +91,7 @@ public class PlacementQueue {
     // Undo pressed while a wave is still travelling: stop it, put back whatever it managed to
     // place, and refund every block that was paid for. Returns how many were removed, or -1
     // when this player had nothing in flight.
-    public static int cancel(PlayerEntity player) {
+    public static int cancel(Player player) {
         for (Animation animation : ACTIVE) {
             if (animation.player != player) {
                 continue;
@@ -105,7 +105,7 @@ public class PlacementQueue {
                     continue; // someone else owns this spot now, so leave it alone
                 }
 
-                if (animation.world.setBlockState(change.pos(), change.before(), Block.NOTIFY_LISTENERS)) {
+                if (animation.world.setBlock(change.pos(), change.before(), Block.UPDATE_CLIENTS)) {
                     reverted++;
                     refunds.add(change.after());
                 }
@@ -198,9 +198,9 @@ public class PlacementQueue {
         // 1.21 replaced the break-status callback with an EquipmentSlot: the overload sends the
         // break effect itself, so there is nothing left for a lambda to do.
         //? if <1.21 {
-        /*animation.wand.damage(1, animation.player, player -> player.sendToolBreakStatus(animation.hand));
+        /*animation.wand.hurtAndBreak(1, animation.player, player -> player.broadcastBreakEvent(animation.hand));
         *///?} else {
-        animation.wand.damage(1, animation.player, LivingEntity.getSlotForHand(animation.hand));
+        animation.wand.hurtAndBreak(1, animation.player, LivingEntity.getSlotForHand(animation.hand));
         //?}
 
         // Breaking empties the stack, which is the only reliable signal that it is gone
@@ -213,11 +213,11 @@ public class PlacementQueue {
         BlockPos pos = block.pos();
         BlockState before = animation.world.getBlockState(pos);
 
-        if (!before.isReplaceable()) {
+        if (!before.canBeReplaced()) {
             return false;
         }
 
-        if (!animation.world.setBlockState(pos, block.state(), Block.NOTIFY_LISTENERS)) {
+        if (!animation.world.setBlock(pos, block.state(), Block.UPDATE_CLIENTS)) {
             return false;
         }
 
@@ -227,10 +227,10 @@ public class PlacementQueue {
     }
 
     // The same volume and pitch vanilla uses when a player places a block
-    private static void playPlaceSound(World world, GradientWandItem.PlannedBlock block) {
-        BlockSoundGroup group = block.state().getSoundGroup();
+    private static void playPlaceSound(Level world, GradientWandItem.PlannedBlock block) {
+        SoundType group = block.state().getSoundType();
 
-        world.playSound(null, block.pos(), group.getPlaceSound(), SoundCategory.BLOCKS,
+        world.playSound(null, block.pos(), group.getPlaceSound(), SoundSource.BLOCKS,
                 (group.getVolume() + 1.0f) / 2.0f, group.getPitch() * 0.8f);
     }
 
@@ -253,12 +253,12 @@ public class PlacementQueue {
         }
 
         if (animation.broken) {
-            animation.player.sendMessage(Text.literal("Your wand broke after placing "
-                    + animation.changes.size() + " blocks" + note).formatted(Formatting.RED), false);
+            animation.player.displayClientMessage(Component.literal("Your wand broke after placing "
+                    + animation.changes.size() + " blocks" + note).withStyle(ChatFormatting.RED), false);
             return;
         }
 
-        animation.player.sendMessage(Text.literal("Placed " + animation.changes.size()
+        animation.player.displayClientMessage(Component.literal("Placed " + animation.changes.size()
                 + " of " + animation.blocks.size() + " blocks" + note), true);
     }
 

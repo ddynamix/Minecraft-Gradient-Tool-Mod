@@ -2,7 +2,7 @@ package net.tyler.gradientwand;
 
 import net.fabricmc.api.ModInitializer;
 
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import net.tyler.gradientwand.animation.PlacementQueue;
 import net.tyler.gradientwand.command.GradientWandCommand;
@@ -43,16 +43,16 @@ public class GradientWand implements ModInitializer {
 		PlacementQueue.register();
 	}
 
-	public static Identifier id(String path) {
+	public static ResourceLocation id(String path) {
 		return id(MOD_ID, path);
 	}
 
-	// Every Identifier the mod builds goes through here, which is why 1.21 making the constructor
+	// Every ResourceLocation the mod builds goes through here, which is why 1.21 making the constructor
 	// private is a one-line change rather than a change at every call site.
-	public static Identifier id(String namespace, String path) {
+	public static ResourceLocation id(String namespace, String path) {
 		//? if <1.21 {
-		/*return new Identifier(namespace, path);
+		/*return new ResourceLocation(namespace, path);
 		*///?} else
-		return Identifier.of(namespace, path);
+		return ResourceLocation.fromNamespaceAndPath(namespace, path);
 	}
 }

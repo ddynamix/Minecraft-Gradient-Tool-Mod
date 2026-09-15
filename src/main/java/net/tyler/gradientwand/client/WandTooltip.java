@@ -1,9 +1,9 @@
 package net.tyler.gradientwand.client;
 
 import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
-import net.minecraft.item.ItemStack;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.network.chat.Component;
+import net.minecraft.ChatFormatting;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
 
 import java.util.List;
@@ -24,13 +24,13 @@ public class WandTooltip {
     }
 
     // Shared by both versions: only the callback's shape differs, never what it adds
-    private static void addMenuHint(ItemStack stack, List<Text> lines) {
+    private static void addMenuHint(ItemStack stack, List<Component> lines) {
         if (!(stack.getItem() instanceof GradientWandItem)) {
             return;
         }
 
         // Looked up per frame, so rebinding the key in Controls is reflected immediately
-        lines.add(Text.translatable("tooltip.gradient_wand.menu", ModKeyBindings.menuKeyLabel())
-                .formatted(Formatting.DARK_GRAY));
+        lines.add(Component.translatable("tooltip.gradient_wand.menu", ModKeyBindings.menuKeyLabel())
+                .withStyle(ChatFormatting.DARK_GRAY));
     }
 }

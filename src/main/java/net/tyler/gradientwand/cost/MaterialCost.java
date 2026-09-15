@@ -1,12 +1,12 @@
 package net.tyler.gradientwand.cost;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.network.chat.Component;
+import net.minecraft.ChatFormatting;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
 
 import java.util.HashMap;
@@ -39,12 +39,12 @@ public class MaterialCost {
         return counts;
     }
 
-    public static Map<Item, Integer> available(PlayerEntity player) {
+    public static Map<Item, Integer> available(Player player) {
         Map<Item, Integer> available = new HashMap<>();
-        PlayerInventory inventory = player.getInventory();
+        Inventory inventory = player.getInventory();
 
-        for (int slot = 0; slot < PlayerInventory.MAIN_SIZE; slot++) {
-            ItemStack stack = inventory.getStack(slot);
+        for (int slot = 0; slot < Inventory.INVENTORY_SIZE; slot++) {
+            ItemStack stack = inventory.getItem(slot);
 
             if (!stack.isEmpty()) {
                 available.merge(stack.getItem(), stack.getCount(), Integer::sum);
@@ -65,39 +65,39 @@ public class MaterialCost {
     }
 
     // Lists everything the gradient needs, green where there is enough and red where there is not
-    public static void report(PlayerEntity player, Map<Item, Integer> required, Map<Item, Integer> available) {
-        player.sendMessage(Text.literal("Not enough blocks:").formatted(Formatting.GRAY), false);
+    public static void report(Player player, Map<Item, Integer> required, Map<Item, Integer> available) {
+        player.displayClientMessage(Component.literal("Not enough blocks:").withStyle(ChatFormatting.GRAY), false);
 
         for (Map.Entry<Item, Integer> entry : required.entrySet()) {
             int have = available.getOrDefault(entry.getKey(), 0);
             int need = entry.getValue();
 
-            player.sendMessage(Text.empty()
-                    .append(entry.getKey().getName())
-                    .append(Text.literal(": " + have + "/" + need))
-                    .formatted(have >= need ? Formatting.GREEN : Formatting.RED), false);
+            player.displayClientMessage(Component.empty()
+                    .append(entry.getKey().getDescription())
+                    .append(Component.literal(": " + have + "/" + need))
+                    .withStyle(have >= need ? ChatFormatting.GREEN : ChatFormatting.RED), false);
         }
     }
 
     // Hands blocks back in legal stack sizes. Anything that will not fit is dropped at the
     // player's feet rather than destroyed.
-    public static void refund(PlayerEntity player, Map<Item, Integer> refunds) {
+    public static void refund(Player player, Map<Item, Integer> refunds) {
         for (Map.Entry<Item, Integer> entry : refunds.entrySet()) {
             int remaining = entry.getValue();
-            int max = new ItemStack(entry.getKey()).getMaxCount();
+            int max = new ItemStack(entry.getKey()).getMaxStackSize();
 
             while (remaining > 0) {
                 int count = Math.min(remaining, max);
 
-                player.getInventory().offerOrDrop(new ItemStack(entry.getKey(), count));
+                player.getInventory().placeItemBackInInventory(new ItemStack(entry.getKey(), count));
                 remaining -= count;
             }
         }
     }
 
     // Inventory before hotbar, so the blocks you are holding are the last ones taken
-    public static void consume(PlayerEntity player, Map<Item, Integer> required) {
-        PlayerInventory inventory = player.getInventory();
+    public static void consume(Player player, Map<Item, Integer> required) {
+        Inventory inventory = player.getInventory();
 
         for (Map.Entry<Item, Integer> entry : required.entrySet()) {
             int remaining = entry.getValue();
@@ -107,26 +107,26 @@ public class MaterialCost {
                     break;
                 }
 
-                ItemStack stack = inventory.getStack(slot);
+                ItemStack stack = inventory.getItem(slot);
 
-                if (!stack.isOf(entry.getKey())) {
+                if (!stack.is(entry.getKey())) {
                     continue;
                 }
 
                 int taken = Math.min(remaining, stack.getCount());
 
-                inventory.removeStack(slot, taken);
+                inventory.removeItem(slot, taken);
                 remaining -= taken;
             }
         }
     }
 
     private static int[] consumeOrder() {
-        int hotbar = PlayerInventory.getHotbarSize();
-        int[] order = new int[PlayerInventory.MAIN_SIZE];
+        int hotbar = Inventory.getSelectionSize();
+        int[] order = new int[Inventory.INVENTORY_SIZE];
         int next = 0;
 
-        for (int slot = hotbar; slot < PlayerInventory.MAIN_SIZE; slot++) {
+        for (int slot = hotbar; slot < Inventory.INVENTORY_SIZE; slot++) {
             order[next++] = slot;
         }
 

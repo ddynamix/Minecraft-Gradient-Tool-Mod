@@ -1,19 +1,19 @@
 package net.tyler.gradientwand.item.custom;
 
 //? if <1.21 {
-/*import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtHelper;
+/*import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtUtils;
 *///?} else {
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.component.ComponentType;
-import net.minecraft.network.codec.PacketCodecs;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
+import net.minecraft.core.component.DataComponentType;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Registry;
 //?}
 
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.BlockPos;
 import net.tyler.gradientwand.GradientWand;
 import net.tyler.gradientwand.core.WandSettings;
 
@@ -34,7 +34,7 @@ public class SettingsNbt {
     }
 
     private static WandSettings readRaw(ItemStack stack) {
-        NbtCompound nbt = stack.getSubNbt(KEY);
+        CompoundTag nbt = stack.getTagElement(KEY);
 
         if (nbt == null) {
             return WandSettings.DEFAULT;
@@ -55,7 +55,7 @@ public class SettingsNbt {
     }
 
     private static void writeRaw(ItemStack stack, WandSettings settings) {
-        NbtCompound nbt = stack.getOrCreateSubNbt(KEY);
+        CompoundTag nbt = stack.getOrCreateTagElement(KEY);
 
         nbt.putString("Mode", settings.mode().name());
         nbt.putString("Axis", settings.axis().name());
@@ -69,25 +69,25 @@ public class SettingsNbt {
 
     // Returns null if no point A is saved
     public static BlockPos readPointA(ItemStack stack) {
-        NbtCompound nbt = stack.getNbt();
+        CompoundTag nbt = stack.getTag();
 
         if (nbt == null || !nbt.contains(POINT_A_KEY)) {
             return null;
         }
 
-        return NbtHelper.toBlockPos(nbt.getCompound(POINT_A_KEY));
+        return NbtUtils.readBlockPos(nbt.getCompound(POINT_A_KEY));
     }
 
     public static void writePointA(ItemStack stack, BlockPos pos) {
-        stack.getOrCreateNbt().put(POINT_A_KEY, NbtHelper.fromBlockPos(pos));
+        stack.getOrCreateTag().put(POINT_A_KEY, NbtUtils.writeBlockPos(pos));
     }
 
     public static void clearPointA(ItemStack stack) {
-        stack.removeSubNbt(POINT_A_KEY);
+        stack.removeTagKey(POINT_A_KEY);
     }
 
     // NBT is player-editable, so an unknown value falls back rather than throwing
-    private static <T extends Enum<T>> T readEnum(NbtCompound nbt, String key, Class<T> type, T fallback) {
+    private static <T extends Enum<T>> T readEnum(CompoundTag nbt, String key, Class<T> type, T fallback) {
         try {
             return Enum.valueOf(type, nbt.getString(key));
         } catch (IllegalArgumentException e) {
@@ -129,19 +129,19 @@ public class SettingsNbt {
     // Both carry a packet codec as well as a persistence codec. That is not optional here: the
     // preview renderer runs on the client and reads the settings and point A off the held stack,
     // so a component that never syncs would leave the preview blank on a server.
-    public static final ComponentType<WandSettings> SETTINGS = ComponentType.<WandSettings>builder()
-            .codec(CODEC)
-            .packetCodec(PacketCodecs.codec(CODEC))
+    public static final DataComponentType<WandSettings> SETTINGS = DataComponentType.<WandSettings>builder()
+            .persistent(CODEC)
+            .networkSynchronized(ByteBufCodecs.fromCodec(CODEC))
             .build();
 
-    public static final ComponentType<BlockPos> POINT_A = ComponentType.<BlockPos>builder()
-            .codec(BlockPos.CODEC)
-            .packetCodec(BlockPos.PACKET_CODEC)
+    public static final DataComponentType<BlockPos> POINT_A = DataComponentType.<BlockPos>builder()
+            .persistent(BlockPos.CODEC)
+            .networkSynchronized(BlockPos.STREAM_CODEC)
             .build();
 
     public static void register() {
-        Registry.register(Registries.DATA_COMPONENT_TYPE, GradientWand.id("settings"), SETTINGS);
-        Registry.register(Registries.DATA_COMPONENT_TYPE, GradientWand.id("point_a"), POINT_A);
+        Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE, GradientWand.id("settings"), SETTINGS);
+        Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE, GradientWand.id("point_a"), POINT_A);
     }
 
     private static WandSettings readRaw(ItemStack stack) {

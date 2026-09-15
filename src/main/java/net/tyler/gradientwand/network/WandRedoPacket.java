@@ -3,18 +3,18 @@ package net.tyler.gradientwand.network;
 //? if <1.21 {
 /*import net.fabricmc.fabric.api.networking.v1.FabricPacket;
 import net.fabricmc.fabric.api.networking.v1.PacketType;
-import net.minecraft.network.PacketByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 *///?} else {
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 //?}
 
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.network.chat.Component;
+import net.minecraft.ChatFormatting;
 import net.tyler.gradientwand.GradientWand;
 import net.tyler.gradientwand.undo.UndoHistory;
 
@@ -26,7 +26,7 @@ import net.tyler.gradientwand.undo.UndoHistory;
             PacketType.create(GradientWand.id("wand_redo"), buf -> new WandRedoPacket());
 
     @Override
-    public void write(PacketByteBuf buf) {
+    public void write(FriendlyByteBuf buf) {
     }
 
     @Override
@@ -38,16 +38,16 @@ import net.tyler.gradientwand.undo.UndoHistory;
         ServerPlayNetworking.registerGlobalReceiver(TYPE, (packet, player, responseSender) -> handle(player));
     }
 *///?} else {
-public record WandRedoPacket() implements CustomPayload {
+public record WandRedoPacket() implements CustomPacketPayload {
 
-    public static final CustomPayload.Id<WandRedoPacket> ID =
-            new CustomPayload.Id<>(GradientWand.id("wand_redo"));
+    public static final CustomPacketPayload.Type<WandRedoPacket> ID =
+            new CustomPacketPayload.Type<>(GradientWand.id("wand_redo"));
 
-    public static final PacketCodec<RegistryByteBuf, WandRedoPacket> CODEC =
-            PacketCodec.unit(new WandRedoPacket());
+    public static final StreamCodec<RegistryFriendlyByteBuf, WandRedoPacket> CODEC =
+            StreamCodec.unit(new WandRedoPacket());
 
     @Override
-    public CustomPayload.Id<WandRedoPacket> getId() {
+    public CustomPacketPayload.Type<WandRedoPacket> type() {
         return ID;
     }
 
@@ -58,7 +58,7 @@ public record WandRedoPacket() implements CustomPayload {
     }
 //?}
 
-    private static void handle(ServerPlayerEntity player) {
+    private static void handle(ServerPlayer player) {
         int placed = UndoHistory.redo(player);
 
         // The shortage list has already been sent by then
@@ -67,10 +67,10 @@ public record WandRedoPacket() implements CustomPayload {
         }
 
         if (placed == UndoHistory.NOTHING) {
-            player.sendMessage(Text.literal("Nothing to redo").formatted(Formatting.RED), true);
+            player.displayClientMessage(Component.literal("Nothing to redo").withStyle(ChatFormatting.RED), true);
             return;
         }
 
-        player.sendMessage(Text.literal("Redid " + placed + " blocks"), true);
+        player.displayClientMessage(Component.literal("Redid " + placed + " blocks"), true);
     }
 }

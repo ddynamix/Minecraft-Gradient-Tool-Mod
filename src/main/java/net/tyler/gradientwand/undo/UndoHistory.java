@@ -1,13 +1,13 @@
 package net.tyler.gradientwand.undo;
 
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.Item;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
 import net.tyler.gradientwand.cost.MaterialCost;
 
 import java.util.*;
@@ -31,13 +31,13 @@ public class UndoHistory {
     }
 
     // One history per player per dimension, so undoing in the Nether cannot reach into the Overworld
-    private record HistoryKey(UUID player, RegistryKey<World> world) {
+    private record HistoryKey(UUID player, ResourceKey<Level> world) {
     }
 
     private static final Map<HistoryKey, Deque<Step>> UNDO = new HashMap<>();
     private static final Map<HistoryKey, Deque<Step>> REDO = new HashMap<>();
 
-    public static void record(PlayerEntity player, List<Change> changes, boolean paid) {
+    public static void record(Player player, List<Change> changes, boolean paid) {
         if (changes.isEmpty()) {
             return;
         }
@@ -56,7 +56,7 @@ public class UndoHistory {
     }
 
     // How many blocks were put back, or NOTHING when there was nothing to undo
-    public static int undo(PlayerEntity player) {
+    public static int undo(Player player) {
         HistoryKey key = keyFor(player);
         Deque<Step> steps = UNDO.get(key);
 
@@ -64,7 +64,7 @@ public class UndoHistory {
             return NOTHING;
         }
 
-        World world = player.getWorld();
+        Level world = player.level();
         Step step = steps.pop();
         List<BlockState> refunds = new ArrayList<>();
         int restored = 0;
@@ -76,7 +76,7 @@ public class UndoHistory {
                 continue;
             }
 
-            if (world.setBlockState(change.pos(), change.before(), Block.NOTIFY_LISTENERS)) {
+            if (world.setBlock(change.pos(), change.before(), Block.UPDATE_CLIENTS)) {
                 restored++;
                 refunds.add(change.after());
             }
@@ -93,7 +93,7 @@ public class UndoHistory {
 
     // How many blocks went back in, NOTHING when there is nothing to redo, or CANNOT_AFFORD
     // when the blocks are no longer in the player's inventory
-    public static int redo(PlayerEntity player) {
+    public static int redo(Player player) {
         HistoryKey key = keyFor(player);
         Deque<Step> steps = REDO.get(key);
 
@@ -101,7 +101,7 @@ public class UndoHistory {
             return NOTHING;
         }
 
-        World world = player.getWorld();
+        Level world = player.level();
         Step step = steps.peek();
 
         // Only what can still go back, mirroring undo's caution
@@ -131,7 +131,7 @@ public class UndoHistory {
         int placed = 0;
 
         for (Change change : applicable) {
-            if (world.setBlockState(change.pos(), change.after(), Block.NOTIFY_LISTENERS)) {
+            if (world.setBlock(change.pos(), change.after(), Block.UPDATE_CLIENTS)) {
                 placed++;
             }
         }
@@ -146,12 +146,12 @@ public class UndoHistory {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> forget(handler.player));
     }
 
-    private static void forget(PlayerEntity player) {
-        UNDO.keySet().removeIf(key -> key.player().equals(player.getUuid()));
-        REDO.keySet().removeIf(key -> key.player().equals(player.getUuid()));
+    private static void forget(Player player) {
+        UNDO.keySet().removeIf(key -> key.player().equals(player.getUUID()));
+        REDO.keySet().removeIf(key -> key.player().equals(player.getUUID()));
     }
 
-    private static HistoryKey keyFor(PlayerEntity player) {
-        return new HistoryKey(player.getUuid(), player.getWorld().getRegistryKey());
+    private static HistoryKey keyFor(Player player) {
+        return new HistoryKey(player.getUUID(), player.level().dimension());
     }
 }
