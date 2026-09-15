@@ -9,7 +9,7 @@ import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.screen.ScreenTexts;
 import net.minecraft.text.Text;
-import net.tyler.gradientwand.item.custom.WandSettings;
+import net.tyler.gradientwand.core.WandSettings;
 import net.tyler.gradientwand.network.WandRedoPacket;
 import net.tyler.gradientwand.network.WandSettingsPacket;
 import net.tyler.gradientwand.network.WandUndoPacket;
@@ -128,7 +128,12 @@ public class GradientWandScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        // 1.21 passes the mouse position and tick delta through to the background renderer
+        //? if <1.21 {
         renderBackground(context);
+        //?} else {
+        /*renderBackground(context, mouseX, mouseY, delta);
+        *///?}
 
         context.drawCenteredTextWithShadow(this.textRenderer, this.title,
                 this.width / 2, this.height / 4 - 20, 0xFFFFFF);

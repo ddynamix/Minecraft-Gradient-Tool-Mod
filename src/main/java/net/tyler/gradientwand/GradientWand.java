@@ -11,6 +11,7 @@ import net.tyler.gradientwand.loot.WandLoot;
 import net.tyler.gradientwand.item.ModItemGroups;
 import net.tyler.gradientwand.item.ModItems;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
+import net.tyler.gradientwand.item.custom.SettingsNbt;
 import net.tyler.gradientwand.network.WandCancelPacket;
 import net.tyler.gradientwand.network.WandSettingsPacket;
 import net.tyler.gradientwand.network.WandUndoPacket;
@@ -26,6 +27,8 @@ public class GradientWand implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		LOGGER.info("Hello Fabric world!");
+		// Before the items, so the component types exist by the time a wand can hold one
+		SettingsNbt.register();
 		ModItems.registerModItems();
 		ModItemGroups.registerItemGroups();
 		ModEnchantments.register();
@@ -41,6 +44,15 @@ public class GradientWand implements ModInitializer {
 	}
 
 	public static Identifier id(String path) {
-		return new Identifier(MOD_ID, path);
+		return id(MOD_ID, path);
+	}
+
+	// Every Identifier the mod builds goes through here, which is why 1.21 making the constructor
+	// private is a one-line change rather than a change at every call site.
+	public static Identifier id(String namespace, String path) {
+		//? if <1.21 {
+		return new Identifier(namespace, path);
+		//?} else
+		//return Identifier.of(namespace, path);
 	}
 }

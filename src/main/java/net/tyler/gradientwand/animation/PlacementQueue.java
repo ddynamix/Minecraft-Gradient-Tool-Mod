@@ -3,6 +3,11 @@ package net.tyler.gradientwand.animation;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
+// Only LivingEntity is version-specific here: it is where 1.21 declares getSlotForHand.
+// PlayerEntity stays outside the directive, or the 1.20.1 render imports it twice.
+//? if >=1.21 {
+/*import net.minecraft.entity.LivingEntity;
+*///?}
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.sound.BlockSoundGroup;
@@ -12,6 +17,7 @@ import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import net.tyler.gradientwand.core.GradientCore;
 import net.tyler.gradientwand.cost.HungerCost;
 import net.tyler.gradientwand.cost.MaterialCost;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
@@ -189,7 +195,13 @@ public class PlacementQueue {
     private static void charge(Animation animation) {
         HungerCost.charge(animation.player, animation.wand);
 
+        // 1.21 replaced the break-status callback with an EquipmentSlot: the overload sends the
+        // break effect itself, so there is nothing left for a lambda to do.
+        //? if <1.21 {
         animation.wand.damage(1, animation.player, player -> player.sendToolBreakStatus(animation.hand));
+        //?} else {
+        /*animation.wand.damage(1, animation.player, LivingEntity.getSlotForHand(animation.hand));
+        *///?}
 
         // Breaking empties the stack, which is the only reliable signal that it is gone
         if (animation.wand.isEmpty()) {
@@ -250,11 +262,10 @@ public class PlacementQueue {
                 + " of " + animation.blocks.size() + " blocks" + note), true);
     }
 
-    // Manhattan distance. On a wall this makes the wavefront a diagonal line sweeping out from
-    // point A; on a strip it is simply the order along the line.
+    // The wavefront ordering is part of the gradient's design, not of Minecraft, so it lives in
+    // the core. Components rather than positions, to avoid allocating through a large sort.
     private static int waveDistance(BlockPos from, BlockPos pos) {
-        return Math.abs(pos.getX() - from.getX())
-                + Math.abs(pos.getY() - from.getY())
-                + Math.abs(pos.getZ() - from.getZ());
+        return GradientCore.waveDistance(from.getX(), from.getY(), from.getZ(),
+                pos.getX(), pos.getY(), pos.getZ());
     }
 }

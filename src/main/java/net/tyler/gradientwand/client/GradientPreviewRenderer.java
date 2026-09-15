@@ -13,8 +13,10 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
+//? if <1.21 {
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
+//?}
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -81,6 +83,11 @@ public class GradientPreviewRenderer {
         matrices.translate(-camera.x, -camera.y, -camera.z);
 
         MatrixStack.Entry entry = matrices.peek();
+
+        // 1.21 changed both halves of this: vertex and normal take the whole MatrixStack.Entry
+        // rather than the position and normal matrices, and next() is gone because a vertex is
+        // finished as soon as its attributes are written.
+        //? if <1.21 {
         Matrix4f position = entry.getPositionMatrix();
         Matrix3f normal = entry.getNormalMatrix();
 
@@ -100,6 +107,22 @@ public class GradientPreviewRenderer {
                     .normal(normal, dx, dy, dz)
                     .next();
         }
+        //?} else {
+        /*for (PreviewEdge edge : cachedEdges) {
+            int dx = edge.axis() == Direction.Axis.X ? 1 : 0;
+            int dy = edge.axis() == Direction.Axis.Y ? 1 : 0;
+            int dz = edge.axis() == Direction.Axis.Z ? 1 : 0;
+
+            // RenderLayer.getLines() wants a position, a colour and a normal on every vertex
+            lines.vertex(entry, edge.x(), edge.y(), edge.z())
+                    .color(edge.red(), edge.green(), edge.blue(), ALPHA)
+                    .normal(entry, dx, dy, dz);
+
+            lines.vertex(entry, edge.x() + dx, edge.y() + dy, edge.z() + dz)
+                    .color(edge.red(), edge.green(), edge.blue(), ALPHA)
+                    .normal(entry, dx, dy, dz);
+        }
+        *///?}
 
         matrices.pop();
     }

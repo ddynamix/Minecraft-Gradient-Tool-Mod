@@ -8,7 +8,7 @@ import net.minecraft.client.util.InputUtil;
 import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
-import net.tyler.gradientwand.item.custom.WandSettings;
+import net.tyler.gradientwand.item.custom.SettingsNbt;
 import net.tyler.gradientwand.item.custom.WandTier;
 import net.tyler.gradientwand.network.WandCancelPacket;
 import org.lwjgl.glfw.GLFW;
@@ -48,7 +48,7 @@ public class ModKeyBindings {
             // while, not if: the key can be pressed more than once between ticks
             while (openMenu.wasPressed()) {
                 if (holdingWand) {
-                    client.setScreen(new GradientWandScreen(WandSettings.from(stack),
+                    client.setScreen(new GradientWandScreen(SettingsNbt.read(stack),
                             WandTier.of(stack).maxWidth()));
                 }
             }

@@ -12,8 +12,8 @@ import net.tyler.gradientwand.item.custom.WandTier;
 
 public class ModItemGroups {
 
-    public static final ItemGroup GRADIENT_WAND_GROUP = Registry.register(Registries.ITEM_GROUP, new Identifier(
-            GradientWand.MOD_ID, "gradient_wand"),
+    public static final ItemGroup GRADIENT_WAND_GROUP = Registry.register(Registries.ITEM_GROUP,
+            GradientWand.id("gradient_wand"),
             FabricItemGroup.builder().displayName(Text.translatable("itemgroup.gradient_wand"))
                     .icon(() -> new ItemStack(ModItems.of(WandTier.NETHERITE))).entries((displayContext, entries) ->
                     {

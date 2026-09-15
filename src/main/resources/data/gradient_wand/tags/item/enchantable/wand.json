@@ -1,0 +1,12 @@
+{
+  "values": [
+    "gradient_wand:wooden_gradient_wand",
+    "gradient_wand:stone_gradient_wand",
+    "gradient_wand:copper_gradient_wand",
+    "gradient_wand:iron_gradient_wand",
+    "gradient_wand:gold_gradient_wand",
+    "gradient_wand:diamond_gradient_wand",
+    "gradient_wand:netherite_gradient_wand",
+    "gradient_wand:gradient_wand"
+  ]
+}

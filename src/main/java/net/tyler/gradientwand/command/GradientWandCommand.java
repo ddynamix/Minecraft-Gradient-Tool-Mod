@@ -11,8 +11,9 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
+import net.tyler.gradientwand.core.WandSettings;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
-import net.tyler.gradientwand.item.custom.WandSettings;
+import net.tyler.gradientwand.item.custom.SettingsNbt;
 
 import java.util.function.BiFunction;
 import java.util.function.UnaryOperator;
@@ -64,11 +65,11 @@ public class GradientWandCommand {
             return 0;
         }
 
-        change.apply(WandSettings.from(stack)).save(stack);
+        SettingsNbt.write(stack, change.apply(SettingsNbt.read(stack)));
 
         // Read it back rather than echoing what was asked for: a narrow tier may have clamped the
         // width on the way in, and the player should see what the wand actually holds
-        source.sendFeedback(() -> Text.literal("Wand set to " + WandSettings.from(stack).describe()), false);
+        source.sendFeedback(() -> Text.literal("Wand set to " + SettingsNbt.read(stack).describe()), false);
 
         return Command.SINGLE_SUCCESS;
     }
@@ -82,7 +83,7 @@ public class GradientWandCommand {
             return 0;
         }
 
-        WandSettings settings = WandSettings.from(stack);
+        WandSettings settings = SettingsNbt.read(stack);
         source.sendFeedback(() -> Text.literal("Wand is " + settings.describe()), false);
 
         return Command.SINGLE_SUCCESS;

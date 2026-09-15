@@ -1,6 +1,5 @@
 package net.tyler.gradientwand.item;
 
-import net.fabricmc.fabric.api.item.v1.FabricItemSettings;
 import net.minecraft.item.Item;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
@@ -27,7 +26,7 @@ public class ModItems {
     // The original wand, still registered so copies already sitting in a world keep loading. It is
     // deliberately not in any creative tab: the seven tiers replace it, and its sprite is gone.
     public static final Item GRADIENT_WAND = registerItem("gradient_wand",
-            new GradientWandItem(new FabricItemSettings().maxCount(1).fireproof(), WandTier.NETHERITE));
+            new GradientWandItem(new Item.Settings().maxCount(1).fireproof(), WandTier.NETHERITE));
 
     public static Item of(WandTier tier) {
         return WANDS.get(tier);
@@ -43,7 +42,7 @@ public class ModItems {
     // maxDamage and fireproof are mutually exclusive here on purpose: the netherite wand never
     // takes damage, so giving it a durability bar would leave a bar that never moves.
     private static Item registerWand(WandTier tier) {
-        FabricItemSettings settings = new FabricItemSettings().maxCount(1);
+        Item.Settings settings = new Item.Settings().maxCount(1);
 
         if (tier.unbreakable()) {
             settings.fireproof();
@@ -55,6 +54,6 @@ public class ModItems {
     }
 
     private static Item registerItem(String name, Item item) {
-        return Registry.register(Registries.ITEM, new Identifier(GradientWand.MOD_ID, name), item);
+        return Registry.register(Registries.ITEM, GradientWand.id(name), item);
     }
 }

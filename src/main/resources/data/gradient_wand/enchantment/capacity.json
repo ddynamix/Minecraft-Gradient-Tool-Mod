@@ -1,0 +1,21 @@
+{
+  "description": {
+    "translate": "enchantment.gradient_wand.capacity"
+  },
+  "supported_items": "#gradient_wand:enchantable/wand",
+  "weight": 2,
+  "max_level": 3,
+  "min_cost": {
+    "base": 15,
+    "per_level_above_first": 9
+  },
+  "max_cost": {
+    "base": 45,
+    "per_level_above_first": 9
+  },
+  "anvil_cost": 4,
+  "slots": [
+    "mainhand"
+  ],
+  "effects": {}
+}
