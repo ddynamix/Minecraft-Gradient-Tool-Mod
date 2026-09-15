@@ -1,5 +1,7 @@
 # Gradient Wand
 
+<img width="350" height="150" alt="Screenshot 2026-09-15 at 4 33 33 PM" src="https://github.com/user-attachments/assets/aeb21d67-e489-4ba5-a774-4280101a2795" />
+
 A Minecraft mod that paints gradients. Set two points, and the wand fills the run between them with
 a blend of whatever blocks are in your hotbar. Can use as a line, a one-block-thick wall, or a ribbon with a variable width.
 
