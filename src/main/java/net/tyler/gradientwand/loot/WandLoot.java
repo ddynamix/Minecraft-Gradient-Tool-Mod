@@ -1,11 +1,11 @@
 package net.tyler.gradientwand.loot;
 
 //? if <1.21 {
-import net.fabricmc.fabric.api.loot.v2.LootTableEvents;
+/*import net.fabricmc.fabric.api.loot.v2.LootTableEvents;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.loot.function.SetNbtLootFunction;
-//?} else {
-/*import net.fabricmc.fabric.api.loot.v3.LootTableEvents;
+*///?} else {
+import net.fabricmc.fabric.api.loot.v3.LootTableEvents;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.ItemEnchantmentsComponent;
 import net.minecraft.enchantment.Enchantment;
@@ -17,7 +17,7 @@ import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.village.TradedItem;
 
 import java.util.Optional;
-*///?}
+//?}
 
 import net.fabricmc.fabric.api.object.builder.v1.trade.TradeOfferHelper;
 import net.minecraft.enchantment.EnchantmentLevelEntry;
@@ -78,7 +78,7 @@ public class WandLoot {
     }
 
     //? if <1.21 {
-    private static void registerChestLoot() {
+    /*private static void registerChestLoot() {
         // v2 on this version: five parameters, and the table is named by a plain Identifier
         LootTableEvents.MODIFY.register((resourceManager, lootManager, tableId, builder, source) -> {
             if (!source.isBuiltin() || !CHESTS.contains(tableId)) {
@@ -136,8 +136,8 @@ public class WandLoot {
                     0.2f);
         }
     }
-    //?} else {
-    /*private static void registerChestLoot() {
+    *///?} else {
+    private static void registerChestLoot() {
         // v3 on this version: the table is named by a RegistryKey, and the fourth parameter is the
         // registry lookup. That lookup is the whole reason for using v3 here: an enchantment is a
         // dynamic registry entry now, and a loot pool is built long before any world exists.
@@ -208,5 +208,5 @@ public class WandLoot {
                     0.2f);
         }
     }
-    *///?}
+    //?}
 }

@@ -1,15 +1,15 @@
 package net.tyler.gradientwand.network;
 
 //? if <1.21 {
-import net.fabricmc.fabric.api.networking.v1.FabricPacket;
+/*import net.fabricmc.fabric.api.networking.v1.FabricPacket;
 import net.fabricmc.fabric.api.networking.v1.PacketType;
 import net.minecraft.network.PacketByteBuf;
-//?} else {
-/*import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+*///?} else {
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
 import net.minecraft.network.packet.CustomPayload;
-*///?}
+//?}
 
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -25,7 +25,7 @@ import net.tyler.gradientwand.undo.UndoHistory;
 // diverges completely between versions. What the packet actually does lives in handle(), shared by
 // both, so the behaviour cannot drift apart while the wiring differs.
 //? if <1.21 {
-public record WandUndoPacket() implements FabricPacket {
+/*public record WandUndoPacket() implements FabricPacket {
 
     public static final PacketType<WandUndoPacket> TYPE =
             PacketType.create(GradientWand.id("wand_undo"), buf -> new WandUndoPacket());
@@ -42,8 +42,8 @@ public record WandUndoPacket() implements FabricPacket {
     public static void registerReceiver() {
         ServerPlayNetworking.registerGlobalReceiver(TYPE, (packet, player, responseSender) -> handle(player));
     }
-//?} else {
-/*public record WandUndoPacket() implements CustomPayload {
+*///?} else {
+public record WandUndoPacket() implements CustomPayload {
 
     public static final CustomPayload.Id<WandUndoPacket> ID =
             new CustomPayload.Id<>(GradientWand.id("wand_undo"));
@@ -62,7 +62,7 @@ public record WandUndoPacket() implements FabricPacket {
 
         ServerPlayNetworking.registerGlobalReceiver(ID, (payload, context) -> handle(context.player()));
     }
-*///?}
+//?}
 
     // Shared by both versions: Fabric hands this to the main server thread either way
     private static void handle(ServerPlayerEntity player) {

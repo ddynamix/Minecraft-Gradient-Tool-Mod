@@ -1,17 +1,15 @@
 package net.tyler.gradientwand.network;
 
 //? if <1.21 {
-import net.fabricmc.fabric.api.networking.v1.FabricPacket;
+/*import net.fabricmc.fabric.api.networking.v1.FabricPacket;
 import net.fabricmc.fabric.api.networking.v1.PacketType;
 import net.minecraft.network.PacketByteBuf;
-//?} else {
-/*import io.netty.buffer.ByteBuf;
+*///?} else {
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
 import net.minecraft.network.packet.CustomPayload;
-*///?}
+//?}
 
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.item.ItemStack;
@@ -23,8 +21,9 @@ import net.tyler.gradientwand.item.custom.SettingsNbt;
 
 // Client to server: "set my wand to these settings". The seed is deliberately not included.
 //? if <1.21 {
-public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAxis axis,
+/*public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAxis axis,
                                  WandSettings.Dither dither, WandSettings.Grain grain,
+                                 WandSettings.Easing easing,
                                  float jitter, int width) implements FabricPacket {
 
     public static final PacketType<WandSettingsPacket> TYPE =
@@ -35,6 +34,7 @@ public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAx
                 buf.readEnumConstant(WandSettings.GradientAxis.class),
                 buf.readEnumConstant(WandSettings.Dither.class),
                 buf.readEnumConstant(WandSettings.Grain.class),
+                buf.readEnumConstant(WandSettings.Easing.class),
                 buf.readFloat(),
                 buf.readVarInt()
         );
@@ -46,6 +46,7 @@ public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAx
         buf.writeEnumConstant(axis);
         buf.writeEnumConstant(dither);
         buf.writeEnumConstant(grain);
+        buf.writeEnumConstant(easing);
         buf.writeFloat(jitter);
         buf.writeVarInt(width);
     }
@@ -58,30 +59,41 @@ public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAx
     public static void registerReceiver() {
         ServerPlayNetworking.registerGlobalReceiver(TYPE, (packet, player, responseSender) -> handle(player, packet));
     }
-//?} else {
-/*public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAxis axis,
+*///?} else {
+public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAxis axis,
                                  WandSettings.Dither dither, WandSettings.Grain grain,
+                                 WandSettings.Easing easing,
                                  float jitter, int width) implements CustomPayload {
 
     public static final CustomPayload.Id<WandSettingsPacket> ID =
             new CustomPayload.Id<>(GradientWand.id("wand_settings"));
 
-    // 1.21 has no enum codec, so each one travels as its ordinal. Reading back through
-    // getEnumConstants keeps it symmetrical with the old readEnumConstant/writeEnumConstant pair.
-    private static <T extends Enum<T>> PacketCodec<ByteBuf, T> enumOf(Class<T> type) {
-        T[] values = type.getEnumConstants();
+    // PacketCodec.tuple stops at six components and this packet has seven, so the fields are
+    // written and read by hand. RegistryByteBuf extends PacketByteBuf, so the enum helpers are the
+    // same ones the 1.20.1 branch uses and the wire order matches it exactly.
+    public static final PacketCodec<RegistryByteBuf, WandSettingsPacket> CODEC =
+            PacketCodec.of(WandSettingsPacket::encode, WandSettingsPacket::decode);
 
-        return PacketCodecs.indexed(index -> values[index], Enum::ordinal);
+    private void encode(RegistryByteBuf buf) {
+        buf.writeEnumConstant(mode);
+        buf.writeEnumConstant(axis);
+        buf.writeEnumConstant(dither);
+        buf.writeEnumConstant(grain);
+        buf.writeEnumConstant(easing);
+        buf.writeFloat(jitter);
+        buf.writeVarInt(width);
     }
 
-    public static final PacketCodec<RegistryByteBuf, WandSettingsPacket> CODEC = PacketCodec.tuple(
-            enumOf(WandSettings.Mode.class), WandSettingsPacket::mode,
-            enumOf(WandSettings.GradientAxis.class), WandSettingsPacket::axis,
-            enumOf(WandSettings.Dither.class), WandSettingsPacket::dither,
-            enumOf(WandSettings.Grain.class), WandSettingsPacket::grain,
-            PacketCodecs.FLOAT, WandSettingsPacket::jitter,
-            PacketCodecs.VAR_INT, WandSettingsPacket::width,
-            WandSettingsPacket::new);
+    private static WandSettingsPacket decode(RegistryByteBuf buf) {
+        return new WandSettingsPacket(
+                buf.readEnumConstant(WandSettings.Mode.class),
+                buf.readEnumConstant(WandSettings.GradientAxis.class),
+                buf.readEnumConstant(WandSettings.Dither.class),
+                buf.readEnumConstant(WandSettings.Grain.class),
+                buf.readEnumConstant(WandSettings.Easing.class),
+                buf.readFloat(),
+                buf.readVarInt());
+    }
 
     @Override
     public CustomPayload.Id<WandSettingsPacket> getId() {
@@ -93,7 +105,7 @@ public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAx
 
         ServerPlayNetworking.registerGlobalReceiver(ID, (payload, context) -> handle(context.player(), payload));
     }
-*///?}
+//?}
 
     // Fabric runs this on the main server thread on both versions, so touching the stack is safe
     private static void handle(ServerPlayerEntity player, WandSettingsPacket packet) {
@@ -110,6 +122,7 @@ public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAx
                 .withAxis(packet.axis())
                 .withDither(packet.dither())
                 .withGrain(packet.grain())
+                .withEasing(packet.easing())
                 .withJitter(Math.max(0.0f, Math.min(1.0f, packet.jitter())))
                 .withWidth(packet.width()));
     }

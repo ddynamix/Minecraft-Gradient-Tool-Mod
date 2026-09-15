@@ -1,15 +1,15 @@
 package net.tyler.gradientwand.network;
 
 //? if <1.21 {
-import net.fabricmc.fabric.api.networking.v1.FabricPacket;
+/*import net.fabricmc.fabric.api.networking.v1.FabricPacket;
 import net.fabricmc.fabric.api.networking.v1.PacketType;
 import net.minecraft.network.PacketByteBuf;
-//?} else {
-/*import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+*///?} else {
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
 import net.minecraft.network.packet.CustomPayload;
-*///?}
+//?}
 
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -20,7 +20,7 @@ import net.tyler.gradientwand.undo.UndoHistory;
 
 // No payload: "put my last undone gradient back"
 //? if <1.21 {
-public record WandRedoPacket() implements FabricPacket {
+/*public record WandRedoPacket() implements FabricPacket {
 
     public static final PacketType<WandRedoPacket> TYPE =
             PacketType.create(GradientWand.id("wand_redo"), buf -> new WandRedoPacket());
@@ -37,8 +37,8 @@ public record WandRedoPacket() implements FabricPacket {
     public static void registerReceiver() {
         ServerPlayNetworking.registerGlobalReceiver(TYPE, (packet, player, responseSender) -> handle(player));
     }
-//?} else {
-/*public record WandRedoPacket() implements CustomPayload {
+*///?} else {
+public record WandRedoPacket() implements CustomPayload {
 
     public static final CustomPayload.Id<WandRedoPacket> ID =
             new CustomPayload.Id<>(GradientWand.id("wand_redo"));
@@ -56,7 +56,7 @@ public record WandRedoPacket() implements FabricPacket {
 
         ServerPlayNetworking.registerGlobalReceiver(ID, (payload, context) -> handle(context.player()));
     }
-*///?}
+//?}
 
     private static void handle(ServerPlayerEntity player) {
         int placed = UndoHistory.redo(player);

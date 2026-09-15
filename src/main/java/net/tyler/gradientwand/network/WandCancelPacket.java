@@ -1,15 +1,15 @@
 package net.tyler.gradientwand.network;
 
 //? if <1.21 {
-import net.fabricmc.fabric.api.networking.v1.FabricPacket;
+/*import net.fabricmc.fabric.api.networking.v1.FabricPacket;
 import net.fabricmc.fabric.api.networking.v1.PacketType;
 import net.minecraft.network.PacketByteBuf;
-//?} else {
-/*import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+*///?} else {
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
 import net.minecraft.network.packet.CustomPayload;
-*///?}
+//?}
 
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.item.ItemStack;
@@ -19,7 +19,7 @@ import net.tyler.gradientwand.item.custom.GradientWandItem;
 
 // No payload: "clear my selection". Sent on left click, whether or not a block was under the crosshair.
 //? if <1.21 {
-public record WandCancelPacket() implements FabricPacket {
+/*public record WandCancelPacket() implements FabricPacket {
 
     public static final PacketType<WandCancelPacket> TYPE =
             PacketType.create(GradientWand.id("wand_cancel"), buf -> new WandCancelPacket());
@@ -36,8 +36,8 @@ public record WandCancelPacket() implements FabricPacket {
     public static void registerReceiver() {
         ServerPlayNetworking.registerGlobalReceiver(TYPE, (packet, player, responseSender) -> handle(player));
     }
-//?} else {
-/*public record WandCancelPacket() implements CustomPayload {
+*///?} else {
+public record WandCancelPacket() implements CustomPayload {
 
     public static final CustomPayload.Id<WandCancelPacket> ID =
             new CustomPayload.Id<>(GradientWand.id("wand_cancel"));
@@ -55,7 +55,7 @@ public record WandCancelPacket() implements FabricPacket {
 
         ServerPlayNetworking.registerGlobalReceiver(ID, (payload, context) -> handle(context.player()));
     }
-*///?}
+//?}
 
     private static void handle(ServerPlayerEntity player) {
         ItemStack stack = player.getMainHandStack();

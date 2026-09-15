@@ -1,21 +1,21 @@
 package net.tyler.gradientwand.enchantment;
 
 //? if <1.21 {
-import net.minecraft.enchantment.Enchantment;
+/*import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.enchantment.EnchantmentTarget;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
-//?} else {
-/*import net.minecraft.component.DataComponentTypes;
+*///?} else {
+import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.ItemEnchantmentsComponent;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.entry.RegistryEntry;
-*///?}
+//?}
 
 import net.minecraft.item.ItemStack;
 import net.tyler.gradientwand.GradientWand;
@@ -32,7 +32,7 @@ public class ModEnchantments {
     public static final int MAX_LEVEL = 3;
 
     //? if <1.21 {
-    // Treasure, so the table never offers them; isAcceptableItem then restricts the anvil to wands
+    /*// Treasure, so the table never offers them; isAcceptableItem then restricts the anvil to wands
     public static final Enchantment CAPACITY = register("capacity", new WandEnchantment(Enchantment.Rarity.RARE));
     public static final Enchantment STAMINA = register("stamina", new WandEnchantment(Enchantment.Rarity.RARE));
 
@@ -79,8 +79,8 @@ public class ModEnchantments {
             return getMinPower(level) + 30;
         }
     }
-    //?} else {
-    /*// Keys, not entries. An enchantment now lives in a dynamic registry, so there is no static
+    *///?} else {
+    // Keys, not entries. An enchantment now lives in a dynamic registry, so there is no static
     // instance to hold; a key is the stable thing, and it is all the level lookup below needs.
     public static final RegistryKey<Enchantment> CAPACITY = key("capacity");
     public static final RegistryKey<Enchantment> STAMINA = key("stamina");
@@ -109,7 +109,7 @@ public class ModEnchantments {
 
         return 0;
     }
-    *///?}
+    //?}
 
     // How much of the tier's block cap this wand gets: half again per level.
     public static float capacityMultiplier(ItemStack stack) {

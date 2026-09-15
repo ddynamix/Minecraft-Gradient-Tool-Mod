@@ -21,10 +21,19 @@ public class GradientWandScreen extends Screen {
     private static final int SPACING = 24;
     private static final int WIDTH_BOX = 50;
 
+    // Shape, gradient axis, easing, grain, dither, blend
+    private static final int SETTING_ROWS = 6;
+
+    // Leaves room for the title above the first row on the smallest window Minecraft allows
+    private static final int TOP_MARGIN = 24;
+
     private WandSettings settings;
 
     // The wand's own ribbon limit, so the box cannot be typed past what this tier allows
     private final int maxWidth;
+
+    // Where the widgets start, so render() can put the title directly above them
+    private int contentTop;
 
     public GradientWandScreen(WandSettings settings, int maxWidth) {
         super(Text.literal("Gradient Wand"));
@@ -35,7 +44,14 @@ public class GradientWandScreen extends Screen {
     @Override
     protected void init() {
         int x = this.width / 2 - WIDGET_WIDTH / 2;
-        int y = this.height / 4;
+
+        // Laid out from the middle rather than from a fixed quarter of the screen. With six
+        // setting rows the old height/4 origin pushed the Done button off the bottom of a 240
+        // pixel window, which is the smallest Minecraft will run at.
+        int contentHeight = SPACING * SETTING_ROWS + 8 + SPACING + WIDGET_HEIGHT;
+        int y = Math.max(TOP_MARGIN, (this.height - contentHeight) / 2);
+
+        this.contentTop = y;
 
         boolean ribbon = settings.mode() == WandSettings.Mode.RIBBON;
         int modeWidth = ribbon ? WIDGET_WIDTH - WIDTH_BOX - 4 : WIDGET_WIDTH;
@@ -75,22 +91,29 @@ public class GradientWandScreen extends Screen {
                 .build(x, y + SPACING, WIDGET_WIDTH, WIDGET_HEIGHT, Text.literal("Gradient axis"),
                         (button, value) -> apply(settings.withAxis(value))));
 
+        // Sits next to the gradient axis: both are about how the blend is spread along the run
+        addDrawableChild(CyclingButtonWidget.<WandSettings.Easing>builder(GradientWandScreen::label)
+                .values(WandSettings.Easing.values())
+                .initially(settings.easing())
+                .build(x, y + SPACING * 2, WIDGET_WIDTH, WIDGET_HEIGHT, Text.literal("Easing"),
+                        (button, value) -> apply(settings.withEasing(value))));
+
         addDrawableChild(CyclingButtonWidget.<WandSettings.Grain>builder(GradientWandScreen::label)
                 .values(WandSettings.Grain.values())
                 .initially(settings.grain())
-                .build(x, y + SPACING * 2, WIDGET_WIDTH, WIDGET_HEIGHT, Text.literal("Grain"),
+                .build(x, y + SPACING * 3, WIDGET_WIDTH, WIDGET_HEIGHT, Text.literal("Grain"),
                         (button, value) -> apply(settings.withGrain(value))));
 
         addDrawableChild(CyclingButtonWidget.<WandSettings.Dither>builder(GradientWandScreen::label)
                 .values(WandSettings.Dither.values())
                 .initially(settings.dither())
-                .build(x, y + SPACING * 3, WIDGET_WIDTH, WIDGET_HEIGHT, Text.literal("Dither"),
+                .build(x, y + SPACING * 4, WIDGET_WIDTH, WIDGET_HEIGHT, Text.literal("Dither"),
                         (button, value) -> apply(settings.withDither(value))));
 
-        addDrawableChild(new JitterSlider(x, y + SPACING * 4, WIDGET_WIDTH, WIDGET_HEIGHT, settings.jitter()));
+        addDrawableChild(new JitterSlider(x, y + SPACING * 5, WIDGET_WIDTH, WIDGET_HEIGHT, settings.jitter()));
 
         int half = (WIDGET_WIDTH - 4) / 2;
-        int buttonY = y + SPACING * 5 + 8;
+        int buttonY = y + SPACING * SETTING_ROWS + 8;
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Undo"),
                         button -> ClientPlayNetworking.send(new WandUndoPacket()))
@@ -123,20 +146,20 @@ public class GradientWandScreen extends Screen {
         settings = updated;
 
         ClientPlayNetworking.send(new WandSettingsPacket(updated.mode(), updated.axis(),
-                updated.dither(), updated.grain(), updated.jitter(), updated.width()));
+                updated.dither(), updated.grain(), updated.easing(), updated.jitter(), updated.width()));
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         // 1.21 passes the mouse position and tick delta through to the background renderer
         //? if <1.21 {
-        renderBackground(context);
-        //?} else {
-        /*renderBackground(context, mouseX, mouseY, delta);
-        *///?}
+        /*renderBackground(context);
+        *///?} else {
+        renderBackground(context, mouseX, mouseY, delta);
+        //?}
 
         context.drawCenteredTextWithShadow(this.textRenderer, this.title,
-                this.width / 2, this.height / 4 - 20, 0xFFFFFF);
+                this.width / 2, contentTop - 16, 0xFFFFFF);
 
         super.render(context, mouseX, mouseY, delta);
     }

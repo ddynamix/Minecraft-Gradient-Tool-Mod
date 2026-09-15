@@ -51,8 +51,8 @@ public class GradientWand implements ModInitializer {
 	// private is a one-line change rather than a change at every call site.
 	public static Identifier id(String namespace, String path) {
 		//? if <1.21 {
-		return new Identifier(namespace, path);
-		//?} else
-		//return Identifier.of(namespace, path);
+		/*return new Identifier(namespace, path);
+		*///?} else
+		return Identifier.of(namespace, path);
 	}
 }

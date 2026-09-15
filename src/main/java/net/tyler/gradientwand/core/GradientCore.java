@@ -64,20 +64,58 @@ public final class GradientCore {
     // Which palette entry a position gets. With dither off this is exactly an integer division.
     // With it on, a position part way between two entries sometimes takes the next.
     private static int pick(int paletteSize, int along, int count, Pos pos, WandSettings settings) {
-        float exact = (float) along * paletteSize / count;
+        float exact = exactBand(paletteSize, along, count, settings.easing());
+
+        // Hard bands take the early exit, so turning dither off leaves this arithmetic untouched
+        if (settings.dither() == WandSettings.Dither.NONE || settings.jitter() <= 0.0f) {
+            return Math.min((int) exact, paletteSize - 1);
+        }
+
+        // Hard bands cut the run into paletteSize equal slices, so their scale is paletteSize. A
+        // blend is a different shape: it runs *between* entries, so the last entry has to land at
+        // the end of the run rather than at the start of its own slice, and that scale is
+        // paletteSize - 1. Blending on the band scale drove exact past the last entry halfway
+        // along the run, where the clamp below quietly swallowed every promotion: two blocks with
+        // dither on came out 29/71 instead of 50/50, which reads as a gradient that lunges for its
+        // final colour. Jitter moves between the two scales, so jitter 0 still lands exactly on
+        // hard bands and there is no jump as the slider leaves zero.
+        float blended = exactBand(paletteSize - 1, along, count, settings.easing());
+
+        exact += (blended - exact) * settings.jitter();
+
         int band = (int) exact;
 
-        if (settings.dither() != WandSettings.Dither.NONE && settings.jitter() > 0.0f) {
-            float threshold = settings.dither() == WandSettings.Dither.ORDERED
-                    ? orderedThreshold(pos)
-                    : randomThreshold(settings.seed(), pos);
+        float threshold = settings.dither() == WandSettings.Dither.ORDERED
+                ? orderedThreshold(pos)
+                : randomThreshold(settings.seed(), pos);
 
-            if (threshold < (exact - band) * settings.jitter()) {
-                band++;
-            }
+        if (threshold < (exact - band) * settings.jitter()) {
+            band++;
         }
 
         return Math.min(band, paletteSize - 1);
+    }
+
+    // How far through the palette this position sits. LINEAR deliberately keeps the original
+    // expression rather than routing through the curve: (a * p) / c and (a / c) * p can disagree
+    // in the last bit of a float, and a gradient that uses no easing must not shift by one block.
+    private static float exactBand(int paletteSize, int along, int count, WandSettings.Easing easing) {
+        if (easing == WandSettings.Easing.LINEAR) {
+            return (float) along * paletteSize / count;
+        }
+
+        return ease((float) along / count, easing) * paletteSize;
+    }
+
+    // Every curve maps 0 to 0 and 1 to 1 and never decreases, so the gradient always runs from the
+    // first hotbar slot to the last. A curve changes where it lingers, never which way it goes.
+    private static float ease(float t, WandSettings.Easing easing) {
+        return switch (easing) {
+            case LINEAR -> t;
+            case FRONT -> t * t;                            // slow start, so the first slot gets room
+            case BACK -> t * (2.0f - t);                    // slow finish, so the last slot does
+            case ENDS -> t * t * (3.0f - 2.0f * t);         // smoothstep: both ends, quick middle
+        };
     }
 
     // Regular repeating pattern, needs no seed and looks the same on every machine.

@@ -25,7 +25,7 @@ class GradientCoreTest {
 
     private static WandSettings settings(WandSettings.Mode mode, int width) {
         return new WandSettings(mode, WandSettings.GradientAxis.AUTO, WandSettings.Dither.NONE,
-                WandSettings.Grain.LONGEST, 1.0f, width, 0L);
+                WandSettings.Grain.LONGEST, WandSettings.Easing.LINEAR, 1.0f, width, 0L);
     }
 
     private static GradientCore.Plan plan(Pos from, Pos to, int palette, WandSettings set,
@@ -312,6 +312,76 @@ class GradientCoreTest {
         }
     }
 
+    // ---------- easing ----------
+
+    @Test
+    @DisplayName("every easing curve runs forwards and reaches both ends of the palette")
+    void easingNeverReversesTheGradient() {
+        for (WandSettings.Easing easing : WandSettings.Easing.values()) {
+            GradientCore.Plan result = plan(new Pos(0, 0, 0), new Pos(63, 0, 0), 4,
+                    settings(WandSettings.Mode.STRIP, 1).withEasing(easing), null, null, false);
+
+            int previous = -1;
+
+            for (GradientCore.PlannedCell cell : result.cells()) {
+                assertTrue(cell.palette() >= previous,
+                        easing + " went backwards: " + previous + " then " + cell.palette());
+                previous = cell.palette();
+            }
+
+            assertEquals(0, result.cells().get(0).palette(),
+                    easing + " must start on the first palette entry");
+            assertEquals(3, result.cells().get(result.cells().size() - 1).palette(),
+                    easing + " must finish on the last palette entry");
+        }
+    }
+
+    @Test
+    @DisplayName("LINEAR is untouched, and each curve gives room to the end it names")
+    void easingShiftsWhereTheGradientLingers() {
+        int[] linear = bandCounts(WandSettings.Easing.LINEAR);
+        int[] front = bandCounts(WandSettings.Easing.FRONT);
+        int[] back = bandCounts(WandSettings.Easing.BACK);
+        int[] ends = bandCounts(WandSettings.Easing.ENDS);
+
+        // Exactly what the bands were before easing existed. LINEAR keeps the original expression
+        // rather than going through the curve, so this must not move by a single block.
+        assertEquals("[16, 16, 16, 16]", java.util.Arrays.toString(linear));
+
+        assertTrue(front[0] > linear[0],
+                "FRONT should hold the first entry longer, got " + java.util.Arrays.toString(front));
+        assertTrue(back[3] > linear[3],
+                "BACK should hold the last entry longer, got " + java.util.Arrays.toString(back));
+        assertTrue(ends[0] > linear[0] && ends[3] > linear[3],
+                "ENDS should favour both ends, got " + java.util.Arrays.toString(ends));
+
+        // and the middle is what pays for it
+        assertTrue(ends[1] < linear[1] && ends[2] < linear[2], "ENDS should thin out the middle");
+
+        for (int[] counts : new int[][]{linear, front, back, ends}) {
+            int total = 0;
+
+            for (int count : counts) {
+                total += count;
+            }
+
+            assertEquals(64, total, "every curve must still place all 64 blocks");
+        }
+    }
+
+    private static int[] bandCounts(WandSettings.Easing easing) {
+        GradientCore.Plan result = plan(new Pos(0, 0, 0), new Pos(63, 0, 0), 4,
+                settings(WandSettings.Mode.STRIP, 1).withEasing(easing), null, null, false);
+
+        int[] counts = new int[4];
+
+        for (GradientCore.PlannedCell cell : result.cells()) {
+            counts[cell.palette()]++;
+        }
+
+        return counts;
+    }
+
     // ---------- dithering ----------
 
     @Test
@@ -331,22 +401,80 @@ class GradientCoreTest {
     }
 
     @Test
-    @DisplayName("dither only ever promotes a block up a band, never down")
-    void ditherOnlyPromotes() {
+    @DisplayName("dither moves a block at most one entry from where the blend puts it")
+    void ditherMovesAtMostOneEntry() {
+        int palette = 4;
+        int length = 64;
+
+        GradientCore.Plan dithered = plan(new Pos(0, 0, 0), new Pos(length - 1, 0, 0), palette,
+                settings(WandSettings.Mode.STRIP, 1).withDither(WandSettings.Dither.ORDERED),
+                null, null, false);
+
+        // This used to assert that dither only ever moved a block *up* from its hard band, which
+        // sounds conservative and was in fact the bug: on the band scale a blend runs off the end
+        // of the palette halfway along, so clamping pinned the whole back half to the last entry.
+        // A blend interpolates between entries, so the honest bound is one step either side of the
+        // ideal position, which on the blend scale is t * (palette - 1).
+        for (int i = 0; i < dithered.cells().size(); i++) {
+            int actual = dithered.cells().get(i).palette();
+            float ideal = (float) i * (palette - 1) / length;
+
+            assertTrue(actual >= Math.floor(ideal) - 1 && actual <= Math.ceil(ideal) + 1,
+                    "block " + i + " landed on entry " + actual + ", too far from the blend's "
+                            + String.format("%.2f", ideal));
+            assertTrue(actual >= 0 && actual < palette,
+                    "dither pushed a block off the palette at index " + i);
+        }
+    }
+
+    @Test
+    @DisplayName("a dithered blend spends even time on the middle entries and half on each end")
+    void ditheredBlendIsUnbiased() {
+        // The regression this locks down: two blocks with dither on came out 29/71 instead of
+        // 50/50, because the blend was computed on the hard-band scale and the clamp ate every
+        // promotion past the end. It reads in game as linear lunging for its final colour, and no
+        // palette-4 test caught it, because the skew shrinks as the palette grows.
+        for (int palette : new int[]{2, 3, 4, 9}) {
+            GradientCore.Plan result = plan(new Pos(0, 0, 0), new Pos(8191, 0, 0), palette,
+                    settings(WandSettings.Mode.STRIP, 1).withDither(WandSettings.Dither.RANDOM),
+                    null, null, false);
+
+            int[] counts = new int[palette];
+
+            for (GradientCore.PlannedCell cell : result.cells()) {
+                counts[cell.palette()]++;
+            }
+
+            int total = result.cells().size();
+
+            for (int entry = 0; entry < palette; entry++) {
+                // Only the ends are pure at the very ends of the run, so they get half the time
+                boolean end = entry == 0 || entry == palette - 1;
+                double expected = (end ? 0.5 : 1.0) / (palette - 1);
+                double actual = (double) counts[entry] / total;
+
+                assertTrue(Math.abs(actual - expected) < 0.02,
+                        "palette " + palette + " entry " + entry + " took "
+                                + String.format("%.1f%%", actual * 100) + " of the run, expected "
+                                + String.format("%.1f%%", expected * 100));
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("jitter 0 with dither on is exactly the hard bands, so the slider has no jump")
+    void zeroJitterMatchesHardBands() {
         GradientCore.Plan plain = plan(new Pos(0, 0, 0), new Pos(63, 0, 0), 4,
                 settings(WandSettings.Mode.STRIP, 1).withDither(WandSettings.Dither.NONE),
                 null, null, false);
 
-        GradientCore.Plan dithered = plan(new Pos(0, 0, 0), new Pos(63, 0, 0), 4,
-                settings(WandSettings.Mode.STRIP, 1).withDither(WandSettings.Dither.ORDERED),
-                null, null, false);
+        for (WandSettings.Dither dither : WandSettings.Dither.values()) {
+            GradientCore.Plan zero = plan(new Pos(0, 0, 0), new Pos(63, 0, 0), 4,
+                    settings(WandSettings.Mode.STRIP, 1).withDither(dither).withJitter(0.0f),
+                    null, null, false);
 
-        for (int i = 0; i < plain.cells().size(); i++) {
-            int before = plain.cells().get(i).palette();
-            int after = dithered.cells().get(i).palette();
-
-            assertTrue(after >= before, "dither demoted a block at index " + i);
-            assertTrue(after - before <= 1, "dither moved a block more than one band");
+            assertEquals(plain.cells(), zero.cells(),
+                    "dither " + dither + " at jitter 0 must match hard bands exactly");
         }
     }
 
@@ -364,6 +492,7 @@ class GradientCoreTest {
                     WandSettings.GradientAxis.AUTO,
                     WandSettings.Dither.RANDOM,
                     WandSettings.Grain.LONGEST,
+                    WandSettings.Easing.LINEAR,
                     1.0f, 1 + rng.nextInt(5), rng.nextLong());
 
             Vec3 eye = new Vec3(4.0, 9.0, 4.0);

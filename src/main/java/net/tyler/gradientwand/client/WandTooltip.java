@@ -17,10 +17,10 @@ public class WandTooltip {
     public static void register() {
         // 1.21 added a TooltipType parameter, so the lambda takes four arguments there
         //? if <1.21 {
-        ItemTooltipCallback.EVENT.register((stack, context, lines) -> addMenuHint(stack, lines));
-        //?} else {
-        /*ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> addMenuHint(stack, lines));
-        *///?}
+        /*ItemTooltipCallback.EVENT.register((stack, context, lines) -> addMenuHint(stack, lines));
+        *///?} else {
+        ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> addMenuHint(stack, lines));
+        //?}
     }
 
     // Shared by both versions: only the callback's shape differs, never what it adds

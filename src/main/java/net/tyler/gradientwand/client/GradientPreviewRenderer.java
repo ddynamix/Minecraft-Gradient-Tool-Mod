@@ -14,9 +14,9 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.tyler.gradientwand.item.custom.GradientWandItem;
 //? if <1.21 {
-import org.joml.Matrix3f;
+/*import org.joml.Matrix3f;
 import org.joml.Matrix4f;
-//?}
+*///?}
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -88,7 +88,7 @@ public class GradientPreviewRenderer {
         // rather than the position and normal matrices, and next() is gone because a vertex is
         // finished as soon as its attributes are written.
         //? if <1.21 {
-        Matrix4f position = entry.getPositionMatrix();
+        /*Matrix4f position = entry.getPositionMatrix();
         Matrix3f normal = entry.getNormalMatrix();
 
         for (PreviewEdge edge : cachedEdges) {
@@ -107,8 +107,8 @@ public class GradientPreviewRenderer {
                     .normal(normal, dx, dy, dz)
                     .next();
         }
-        //?} else {
-        /*for (PreviewEdge edge : cachedEdges) {
+        *///?} else {
+        for (PreviewEdge edge : cachedEdges) {
             int dx = edge.axis() == Direction.Axis.X ? 1 : 0;
             int dy = edge.axis() == Direction.Axis.Y ? 1 : 0;
             int dz = edge.axis() == Direction.Axis.Z ? 1 : 0;
@@ -122,7 +122,7 @@ public class GradientPreviewRenderer {
                     .color(edge.red(), edge.green(), edge.blue(), ALPHA)
                     .normal(entry, dx, dy, dz);
         }
-        *///?}
+        //?}
 
         matrices.pop();
     }

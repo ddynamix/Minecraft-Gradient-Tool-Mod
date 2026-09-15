@@ -3,7 +3,7 @@ package net.tyler.gradientwand.core;
 // Everything the player can choose about a gradient, and nothing about how it is stored. Reading
 // and writing this to an item is the platform's job, which is what keeps this record usable on a
 // Minecraft version where item data works completely differently.
-public record WandSettings(Mode mode, GradientAxis axis, Dither dither, Grain grain,
+public record WandSettings(Mode mode, GradientAxis axis, Dither dither, Grain grain, Easing easing,
                            float jitter, int width, long seed) {
 
     public static final int MIN_WIDTH = 1;
@@ -30,8 +30,15 @@ public record WandSettings(Mode mode, GradientAxis axis, Dither dither, Grain gr
         OFF, LONGEST, SHORTEST, EAST_WEST, NORTH_SOUTH, UP_DOWN
     }
 
-    public static final WandSettings DEFAULT =
-            new WandSettings(Mode.STRIP, GradientAxis.AUTO, Dither.NONE, Grain.LONGEST, 1.0f, 3, 0L);
+    // How the palette is spread along the run, named for what a builder sees rather than for the
+    // curve behind it. FRONT gives more room to the first hotbar slot, BACK to the last, and ENDS
+    // to both with a quick change through the middle. A gradient in a real build is rarely even.
+    public enum Easing {
+        LINEAR, FRONT, BACK, ENDS
+    }
+
+    public static final WandSettings DEFAULT = new WandSettings(
+            Mode.STRIP, GradientAxis.AUTO, Dither.NONE, Grain.LONGEST, Easing.LINEAR, 1.0f, 3, 0L);
 
     public static int clampWidth(int value) {
         return clampWidth(value, MAX_WIDTH);
@@ -42,39 +49,44 @@ public record WandSettings(Mode mode, GradientAxis axis, Dither dither, Grain gr
     }
 
     public WandSettings withMode(Mode value) {
-        return new WandSettings(value, axis, dither, grain, jitter, width, seed);
+        return new WandSettings(value, axis, dither, grain, easing, jitter, width, seed);
     }
 
     public WandSettings withAxis(GradientAxis value) {
-        return new WandSettings(mode, value, dither, grain, jitter, width, seed);
+        return new WandSettings(mode, value, dither, grain, easing, jitter, width, seed);
     }
 
     public WandSettings withDither(Dither value) {
-        return new WandSettings(mode, axis, value, grain, jitter, width, seed);
+        return new WandSettings(mode, axis, value, grain, easing, jitter, width, seed);
     }
 
     public WandSettings withGrain(Grain value) {
-        return new WandSettings(mode, axis, dither, value, jitter, width, seed);
+        return new WandSettings(mode, axis, dither, value, easing, jitter, width, seed);
+    }
+
+    public WandSettings withEasing(Easing value) {
+        return new WandSettings(mode, axis, dither, grain, value, jitter, width, seed);
     }
 
     public WandSettings withJitter(float value) {
-        return new WandSettings(mode, axis, dither, grain, value, width, seed);
+        return new WandSettings(mode, axis, dither, grain, easing, value, width, seed);
     }
 
     public WandSettings withWidth(int value) {
-        return new WandSettings(mode, axis, dither, grain, jitter, clampWidth(value), seed);
+        return new WandSettings(mode, axis, dither, grain, easing, jitter, clampWidth(value), seed);
     }
 
     public WandSettings withSeed(long value) {
-        return new WandSettings(mode, axis, dither, grain, jitter, width, value);
+        return new WandSettings(mode, axis, dither, grain, easing, jitter, width, value);
     }
 
     public String describe() {
-        return String.format("mode %s, axis %s, dither %s, grain %s, jitter %.2f, width %d",
+        return String.format("mode %s, axis %s, dither %s, grain %s, easing %s, jitter %.2f, width %d",
                 mode.name().toLowerCase(),
                 axis.name().toLowerCase(),
                 dither.name().toLowerCase(),
                 grain.name().toLowerCase(),
+                easing.name().toLowerCase(),
                 jitter,
                 width);
     }

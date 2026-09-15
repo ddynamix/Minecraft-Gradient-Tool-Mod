@@ -119,16 +119,16 @@ public class GradientWandItem extends Item {
     // Stops the wand dipping out of hand every time its data changes. Fabric renamed this hook
     // when 1.20.5 replaced item NBT with components, so only the method name differs.
     //? if <1.21 {
-    @Override
+    /*@Override
     public boolean allowNbtUpdateAnimation(PlayerEntity player, Hand hand, ItemStack oldStack, ItemStack newStack) {
         return false;
     }
-    //?} else {
-    /*@Override
+    *///?} else {
+    @Override
     public boolean allowComponentsUpdateAnimation(PlayerEntity player, Hand hand, ItemStack oldStack, ItemStack newStack) {
         return false;
     }
-    *///?}
+    //?}
 
     // One position the wand intends to fill, and what goes there
     public record PlannedBlock(BlockPos pos, BlockState state) {

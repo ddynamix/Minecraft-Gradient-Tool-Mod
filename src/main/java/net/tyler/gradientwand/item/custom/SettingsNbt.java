@@ -1,16 +1,16 @@
 package net.tyler.gradientwand.item.custom;
 
 //? if <1.21 {
-import net.minecraft.nbt.NbtCompound;
+/*import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtHelper;
-//?} else {
-/*import com.mojang.serialization.Codec;
+*///?} else {
+import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.component.ComponentType;
 import net.minecraft.network.codec.PacketCodecs;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
-*///?}
+//?}
 
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.BlockPos;
@@ -26,7 +26,7 @@ import net.tyler.gradientwand.core.WandSettings;
 public class SettingsNbt {
 
     //? if <1.21 {
-    private static final String KEY = "Settings";
+    /*private static final String KEY = "Settings";
     private static final String POINT_A_KEY = "PointA";
 
     // Nothing to register: on this version the data is plain item NBT
@@ -48,6 +48,7 @@ public class SettingsNbt {
                 readEnum(nbt, "Axis", WandSettings.GradientAxis.class, WandSettings.DEFAULT.axis()),
                 readEnum(nbt, "Dither", WandSettings.Dither.class, WandSettings.DEFAULT.dither()),
                 readEnum(nbt, "Grain", WandSettings.Grain.class, WandSettings.DEFAULT.grain()),
+                readEnum(nbt, "Easing", WandSettings.Easing.class, WandSettings.DEFAULT.easing()),
                 jitter,
                 width,
                 nbt.getLong("Seed"));
@@ -60,6 +61,7 @@ public class SettingsNbt {
         nbt.putString("Axis", settings.axis().name());
         nbt.putString("Dither", settings.dither().name());
         nbt.putString("Grain", settings.grain().name());
+        nbt.putString("Easing", settings.easing().name());
         nbt.putFloat("Jitter", settings.jitter());
         nbt.putInt("Width", settings.width());
         nbt.putLong("Seed", settings.seed());
@@ -92,8 +94,8 @@ public class SettingsNbt {
             return fallback;
         }
     }
-    //?} else {
-    /*// Enums travel as their names, the same as the old NBT form, so a wand keeps its settings
+    *///?} else {
+    // Enums travel as their names, the same as the old NBT form, so a wand keeps its settings
     // across the version jump. An unrecognised name falls back instead of throwing, because this
     // data is still player-editable through /data.
     private static <T extends Enum<T>> Codec<T> enumCodec(Class<T> type, T fallback) {
@@ -117,6 +119,8 @@ public class SettingsNbt {
                     .optionalFieldOf("dither", WandSettings.DEFAULT.dither()).forGetter(WandSettings::dither),
             enumCodec(WandSettings.Grain.class, WandSettings.DEFAULT.grain())
                     .optionalFieldOf("grain", WandSettings.DEFAULT.grain()).forGetter(WandSettings::grain),
+            enumCodec(WandSettings.Easing.class, WandSettings.DEFAULT.easing())
+                    .optionalFieldOf("easing", WandSettings.DEFAULT.easing()).forGetter(WandSettings::easing),
             Codec.FLOAT.optionalFieldOf("jitter", WandSettings.DEFAULT.jitter()).forGetter(WandSettings::jitter),
             Codec.INT.optionalFieldOf("width", WandSettings.DEFAULT.width()).forGetter(WandSettings::width),
             Codec.LONG.optionalFieldOf("seed", WandSettings.DEFAULT.seed()).forGetter(WandSettings::seed)
@@ -160,7 +164,7 @@ public class SettingsNbt {
     public static void clearPointA(ItemStack stack) {
         stack.remove(POINT_A);
     }
-    *///?}
+    //?}
 
     public static WandSettings read(ItemStack stack) {
         return clamp(stack, readRaw(stack));

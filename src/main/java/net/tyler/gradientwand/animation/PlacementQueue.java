@@ -6,8 +6,8 @@ import net.minecraft.block.BlockState;
 // Only LivingEntity is version-specific here: it is where 1.21 declares getSlotForHand.
 // PlayerEntity stays outside the directive, or the 1.20.1 render imports it twice.
 //? if >=1.21 {
-/*import net.minecraft.entity.LivingEntity;
-*///?}
+import net.minecraft.entity.LivingEntity;
+//?}
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.sound.BlockSoundGroup;
@@ -198,10 +198,10 @@ public class PlacementQueue {
         // 1.21 replaced the break-status callback with an EquipmentSlot: the overload sends the
         // break effect itself, so there is nothing left for a lambda to do.
         //? if <1.21 {
-        animation.wand.damage(1, animation.player, player -> player.sendToolBreakStatus(animation.hand));
-        //?} else {
-        /*animation.wand.damage(1, animation.player, LivingEntity.getSlotForHand(animation.hand));
-        *///?}
+        /*animation.wand.damage(1, animation.player, player -> player.sendToolBreakStatus(animation.hand));
+        *///?} else {
+        animation.wand.damage(1, animation.player, LivingEntity.getSlotForHand(animation.hand));
+        //?}
 
         // Breaking empties the stack, which is the only reliable signal that it is gone
         if (animation.wand.isEmpty()) {
