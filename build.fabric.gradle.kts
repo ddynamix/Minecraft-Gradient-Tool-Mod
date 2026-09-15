@@ -4,7 +4,7 @@ plugins {
 }
 
 // DO NOT set group here: Stonecutter manages the version nodes' coordinates
-version = "${property("mod.version")}+${sc.current.version}"
+version = "${property("mod.version")}+${sc.current.version}-fabric"
 base.archivesName = property("mod.id") as String
 
 // Minecraft's own Java requirement per era. 1.20.5 is where Mojang moved to 21.
@@ -74,6 +74,9 @@ tasks.processResources {
         "name" to modName,
         "version" to project.version.toString(),
         "minecraft" to modMcCompat,
+        // Was hardcoded to 17 in fabric.mod.json, which under-declared the 1.21.1 jar: it is
+        // compiled at 21, so a player on 17 got a class-version crash instead of a clean refusal.
+        "java" to requiredJava.majorVersion,
     )
 
     inputs.properties(values)
