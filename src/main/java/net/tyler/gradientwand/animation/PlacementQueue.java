@@ -1,6 +1,11 @@
 package net.tyler.gradientwand.animation;
 
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+//? if fabric {
+/*import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+*///?}
+//? if neoforge {
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+//?}
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 // Only LivingEntity is version-specific here: it is where 1.21 declares getSlotForHand.
@@ -68,9 +73,17 @@ public class PlacementQueue {
         }
     }
 
-    public static void register() {
+    //? if fabric {
+    /*public static void register() {
         ServerTickEvents.END_SERVER_TICK.register(server -> tick());
     }
+    *///?}
+    //? if neoforge {
+    // Subscribed by GradientWand on the game bus; the server instance is not needed here
+    public static void onServerTick(ServerTickEvent.Post event) {
+        tick();
+    }
+    //?}
 
     // "paid" is recorded here rather than checked at the end, so switching game mode part way
     // through cannot earn free blocks or refund ones that were never charged for. The wand stack

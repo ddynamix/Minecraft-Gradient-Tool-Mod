@@ -3,15 +3,23 @@ package net.tyler.gradientwand.network;
 //? if <1.21 {
 /*import net.fabricmc.fabric.api.networking.v1.FabricPacket;
 import net.fabricmc.fabric.api.networking.v1.PacketType;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
-*///?} else {
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+*///?}
+//? if >=1.21 && fabric {
+/*import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+*///?}
+//? if neoforge {
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 //?}
 
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.ChatFormatting;
@@ -37,8 +45,9 @@ import net.tyler.gradientwand.undo.UndoHistory;
     public static void registerReceiver() {
         ServerPlayNetworking.registerGlobalReceiver(TYPE, (packet, player, responseSender) -> handle(player));
     }
-*///?} else {
-public record WandRedoPacket() implements CustomPacketPayload {
+*///?}
+//? if >=1.21 && fabric {
+/*public record WandRedoPacket() implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<WandRedoPacket> ID =
             new CustomPacketPayload.Type<>(GradientWand.id("wand_redo"));
@@ -55,6 +64,24 @@ public record WandRedoPacket() implements CustomPacketPayload {
         PayloadTypeRegistry.playC2S().register(ID, CODEC);
 
         ServerPlayNetworking.registerGlobalReceiver(ID, (payload, context) -> handle(context.player()));
+    }
+*///?}
+//? if neoforge {
+public record WandRedoPacket() implements CustomPacketPayload {
+
+    public static final CustomPacketPayload.Type<WandRedoPacket> ID =
+            new CustomPacketPayload.Type<>(GradientWand.id("wand_redo"));
+
+    public static final StreamCodec<RegistryFriendlyByteBuf, WandRedoPacket> CODEC =
+            StreamCodec.unit(new WandRedoPacket());
+
+    @Override
+    public CustomPacketPayload.Type<WandRedoPacket> type() {
+        return ID;
+    }
+
+    public static void register(PayloadRegistrar registrar) {
+        registrar.playToServer(ID, CODEC, (payload, context) -> handle((ServerPlayer) context.player()));
     }
 //?}
 

@@ -1,8 +1,17 @@
 package net.tyler.gradientwand.client;
 
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+//? if fabric {
+/*import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+*///?}
+//? if neoforge {
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.network.PacketDistributor;
+//?}
+
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.world.item.ItemStack;
@@ -27,40 +36,73 @@ public class ModKeyBindings {
         return openMenu.getTranslatedKeyMessage();
     }
 
-    // Edge detection by hand: vanilla drains attackKey.consumeClick() earlier in the tick
+    // Edge detection by hand: vanilla drains keyAttack.consumeClick() earlier in the tick
     private static boolean attackWasDown;
 
-    public static void register() {
-        openMenu = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+    // The binding itself is identical on both loaders; only who is told about it differs
+    private static KeyMapping newBinding() {
+        return new KeyMapping(
                 "key.gradient_wand.open_menu",
                 InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_G,
-                "category.gradient_wand"));
+                "category.gradient_wand");
+    }
 
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (client.player == null) {
-                return;
+    //? if fabric {
+    /*public static void register() {
+        openMenu = KeyBindingHelper.registerKeyBinding(newBinding());
+
+        ClientTickEvents.END_CLIENT_TICK.register(ModKeyBindings::tick);
+    }
+    *///?}
+    //? if neoforge {
+    // NeoForge splits this in two: the binding is registered on the mod bus during startup, and
+    // the per-tick polling is a separate game-bus event. GradientWandClient wires both up.
+    public static void registerKeys(RegisterKeyMappingsEvent event) {
+        openMenu = newBinding();
+
+        event.register(openMenu);
+    }
+
+    public static void onClientTick(ClientTickEvent.Post event) {
+        tick(Minecraft.getInstance());
+    }
+    //?}
+
+    // Shared body: polling the key and reacting to left click is the same on every loader
+    private static void tick(Minecraft client) {
+        if (client.player == null) {
+            return;
+        }
+
+        ItemStack stack = client.player.getMainHandItem();
+        boolean holdingWand = stack.getItem() instanceof GradientWandItem;
+
+        // while, not if: the key can be pressed more than once between ticks
+        while (openMenu.consumeClick()) {
+            if (holdingWand) {
+                client.setScreen(new GradientWandScreen(SettingsNbt.read(stack),
+                        WandTier.of(stack).maxWidth()));
             }
+        }
 
-            ItemStack stack = client.player.getMainHandItem();
-            boolean holdingWand = stack.getItem() instanceof GradientWandItem;
+        boolean attackDown = client.screen == null && client.options.keyAttack.isDown();
 
-            // while, not if: the key can be pressed more than once between ticks
-            while (openMenu.consumeClick()) {
-                if (holdingWand) {
-                    client.setScreen(new GradientWandScreen(SettingsNbt.read(stack),
-                            WandTier.of(stack).maxWidth()));
-                }
-            }
+        // Left click cancels, aimed at a block or at nothing at all
+        if (attackDown && !attackWasDown && holdingWand) {
+            sendCancel();
+        }
 
-            boolean attackDown = client.screen == null && client.options.keyAttack.isDown();
+        attackWasDown = attackDown;
+    }
 
-            // Left click cancels, aimed at a block or at nothing at all
-            if (attackDown && !attackWasDown && holdingWand) {
-                ClientPlayNetworking.send(new WandCancelPacket());
-            }
-
-            attackWasDown = attackDown;
-        });
+    // The only line in the tick body that is loader specific
+    private static void sendCancel() {
+        //? if fabric {
+        /*ClientPlayNetworking.send(new WandCancelPacket());
+        *///?}
+        //? if neoforge {
+        PacketDistributor.sendToServer(new WandCancelPacket());
+        //?}
     }
 }

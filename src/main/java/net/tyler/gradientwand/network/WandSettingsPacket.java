@@ -3,15 +3,23 @@ package net.tyler.gradientwand.network;
 //? if <1.21 {
 /*import net.fabricmc.fabric.api.networking.v1.FabricPacket;
 import net.fabricmc.fabric.api.networking.v1.PacketType;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
-*///?} else {
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+*///?}
+//? if >=1.21 && fabric {
+/*import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+*///?}
+//? if neoforge {
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 //?}
 
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.server.level.ServerPlayer;
 import net.tyler.gradientwand.GradientWand;
@@ -59,8 +67,9 @@ import net.tyler.gradientwand.item.custom.SettingsNbt;
     public static void registerReceiver() {
         ServerPlayNetworking.registerGlobalReceiver(TYPE, (packet, player, responseSender) -> handle(player, packet));
     }
-*///?} else {
-public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAxis axis,
+*///?}
+//? if >=1.21 && fabric {
+/*public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAxis axis,
                                  WandSettings.Dither dither, WandSettings.Grain grain,
                                  WandSettings.Easing easing,
                                  float jitter, int width) implements CustomPacketPayload {
@@ -105,9 +114,52 @@ public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAx
 
         ServerPlayNetworking.registerGlobalReceiver(ID, (payload, context) -> handle(context.player(), payload));
     }
+*///?}
+//? if neoforge {
+public record WandSettingsPacket(WandSettings.Mode mode, WandSettings.GradientAxis axis,
+                                 WandSettings.Dither dither, WandSettings.Grain grain,
+                                 WandSettings.Easing easing,
+                                 float jitter, int width) implements CustomPacketPayload {
+
+    public static final CustomPacketPayload.Type<WandSettingsPacket> ID =
+            new CustomPacketPayload.Type<>(GradientWand.id("wand_settings"));
+
+    // Identical wire order to the Fabric branch, so a wand behaves the same on either loader
+    public static final StreamCodec<RegistryFriendlyByteBuf, WandSettingsPacket> CODEC =
+            StreamCodec.ofMember(WandSettingsPacket::encode, WandSettingsPacket::decode);
+
+    private void encode(RegistryFriendlyByteBuf buf) {
+        buf.writeEnum(mode);
+        buf.writeEnum(axis);
+        buf.writeEnum(dither);
+        buf.writeEnum(grain);
+        buf.writeEnum(easing);
+        buf.writeFloat(jitter);
+        buf.writeVarInt(width);
+    }
+
+    private static WandSettingsPacket decode(RegistryFriendlyByteBuf buf) {
+        return new WandSettingsPacket(
+                buf.readEnum(WandSettings.Mode.class),
+                buf.readEnum(WandSettings.GradientAxis.class),
+                buf.readEnum(WandSettings.Dither.class),
+                buf.readEnum(WandSettings.Grain.class),
+                buf.readEnum(WandSettings.Easing.class),
+                buf.readFloat(),
+                buf.readVarInt());
+    }
+
+    @Override
+    public CustomPacketPayload.Type<WandSettingsPacket> type() {
+        return ID;
+    }
+
+    public static void register(PayloadRegistrar registrar) {
+        registrar.playToServer(ID, CODEC, (payload, context) -> handle((ServerPlayer) context.player(), payload));
+    }
 //?}
 
-    // Fabric runs this on the main server thread on both versions, so touching the stack is safe
+    // Runs on the main server thread on every loader, so touching the stack is safe
     private static void handle(ServerPlayer player, WandSettingsPacket packet) {
         ItemStack stack = player.getMainHandItem();
 

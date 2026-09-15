@@ -1,6 +1,11 @@
 package net.tyler.gradientwand.client;
 
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+//? if fabric {
+/*import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+*///?}
+//? if neoforge {
+import net.neoforged.neoforge.network.PacketDistributor;
+//?}
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.components.Button;
@@ -116,12 +121,12 @@ public class GradientWandScreen extends Screen {
         int buttonY = y + SPACING * SETTING_ROWS + 8;
 
         addRenderableWidget(Button.builder(Component.literal("Undo"),
-                        button -> ClientPlayNetworking.send(new WandUndoPacket()))
+                        button -> send(new WandUndoPacket()))
                 .bounds(x, buttonY, half, WIDGET_HEIGHT)
                 .build());
 
         addRenderableWidget(Button.builder(Component.literal("Redo"),
-                        button -> ClientPlayNetworking.send(new WandRedoPacket()))
+                        button -> send(new WandRedoPacket()))
                 .bounds(x + half + 4, buttonY, half, WIDGET_HEIGHT)
                 .build());
 
@@ -145,9 +150,27 @@ public class GradientWandScreen extends Screen {
     private void apply(WandSettings updated) {
         settings = updated;
 
-        ClientPlayNetworking.send(new WandSettingsPacket(updated.mode(), updated.axis(),
+        send(new WandSettingsPacket(updated.mode(), updated.axis(),
                 updated.dither(), updated.grain(), updated.easing(), updated.jitter(), updated.width()));
     }
+
+    // Fabric and NeoForge disagree only about how a payload reaches the server, so every
+    // send in this screen funnels through here.
+    //? if <1.21 {
+    /*private static void send(net.fabricmc.fabric.api.networking.v1.FabricPacket packet) {
+        ClientPlayNetworking.send(packet);
+    }
+    *///?}
+    //? if >=1.21 && fabric {
+    /*private static void send(net.minecraft.network.protocol.common.custom.CustomPacketPayload packet) {
+        ClientPlayNetworking.send(packet);
+    }
+    *///?}
+    //? if neoforge {
+    private static void send(net.minecraft.network.protocol.common.custom.CustomPacketPayload packet) {
+        PacketDistributor.sendToServer(packet);
+    }
+    //?}
 
     @Override
     public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {

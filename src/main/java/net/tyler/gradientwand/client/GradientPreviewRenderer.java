@@ -1,7 +1,12 @@
 package net.tyler.gradientwand.client;
 
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
+//? if fabric {
+/*import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+*///?}
+//? if neoforge {
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+//?}
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderType;
@@ -41,11 +46,34 @@ public class GradientPreviewRenderer {
     private static GradientWandItem.GradientRequest cachedRequest;
     private static List<PreviewEdge> cachedEdges = List.of();
 
-    public static void register() {
-        WorldRenderEvents.AFTER_ENTITIES.register(GradientPreviewRenderer::render);
+    //? if fabric {
+    /*public static void register() {
+        WorldRenderEvents.AFTER_ENTITIES.register(GradientPreviewRenderer::onFabricRender);
     }
 
-    private static void render(WorldRenderContext context) {
+    private static void onFabricRender(WorldRenderContext context) {
+        render(context.matrixStack(), context.camera().getPosition(),
+                context.consumers().getBuffer(RenderType.lines()), context.world());
+    }
+    *///?}
+    //? if neoforge {
+    // RenderLevelStageEvent fires for every stage, so this picks the one that matches Fabric's
+    // AFTER_ENTITIES. It also carries neither a level nor a buffer source, so both come from the
+    // client instance instead.
+    public static void onRenderLevelStage(RenderLevelStageEvent event) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
+            return;
+        }
+
+        Minecraft client = Minecraft.getInstance();
+
+        render(event.getPoseStack(), event.getCamera().getPosition(),
+                client.renderBuffers().bufferSource().getBuffer(RenderType.lines()), client.level);
+    }
+    //?}
+
+    // Everything below is loader agnostic: it only ever sees vanilla rendering types
+    private static void render(PoseStack matrices, Vec3 camera, VertexConsumer lines, ClientLevel world) {
         LocalPlayer player = Minecraft.getInstance().player;
 
         if (player == null) {
@@ -68,16 +96,12 @@ public class GradientPreviewRenderer {
 
         if (!request.equals(cachedRequest)) {
             cachedRequest = request;
-            cachedEdges = buildEdges(GradientWandItem.plan(request), context.world());
+            cachedEdges = buildEdges(GradientWandItem.plan(request), world);
         }
 
         if (cachedEdges.isEmpty()) {
             return;
         }
-
-        PoseStack matrices = context.matrixStack();
-        Vec3 camera = context.camera().getPosition();
-        VertexConsumer lines = context.consumers().getBuffer(RenderType.lines());
 
         matrices.pushPose();
         matrices.translate(-camera.x, -camera.y, -camera.z);

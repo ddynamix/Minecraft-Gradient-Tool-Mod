@@ -6,7 +6,12 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+//? if fabric {
+/*import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+*///?}
+//? if neoforge {
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
+//?}
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.CommandSourceStack;
@@ -20,9 +25,21 @@ import java.util.function.UnaryOperator;
 
 public class GradientWandCommand {
 
-    public static void register() {
+    //? if fabric {
+    /*public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
-                dispatcher.register(Commands.literal("gwand")
+                dispatcher.register(build()));
+    }
+    *///?}
+    //? if neoforge {
+    public static void onRegisterCommands(RegisterCommandsEvent event) {
+        event.getDispatcher().register(build());
+    }
+    //?}
+
+    // The tree itself is identical on every loader; only who is handed it differs
+    private static LiteralArgumentBuilder<CommandSourceStack> build() {
+        return Commands.literal("gwand")
                         .then(enumOption("mode", WandSettings.Mode.values(), WandSettings::withMode))
                         .then(enumOption("axis", WandSettings.GradientAxis.values(), WandSettings::withAxis))
                         .then(enumOption("dither", WandSettings.Dither.values(), WandSettings::withDither))
@@ -38,7 +55,7 @@ public class GradientWandCommand {
                                         .executes(context -> apply(context, settings ->
                                                 settings.withWidth(IntegerArgumentType.getInteger(context, "blocks"))))))
                         .then(Commands.literal("show")
-                                .executes(GradientWandCommand::show))));
+                                .executes(GradientWandCommand::show));
     }
 
     // Builds "gwand <name> <value1|value2|...>" from an enum's values

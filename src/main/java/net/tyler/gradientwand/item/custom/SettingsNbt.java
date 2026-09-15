@@ -8,8 +8,15 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.core.registries.BuiltInRegistries;
+//? if fabric {
+/*import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.Registry;
+*///?}
+//? if neoforge {
+import net.minecraft.core.registries.Registries;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.registries.DeferredRegister;
+//?}
 //?}
 
 import net.minecraft.world.item.ItemStack;
@@ -139,10 +146,28 @@ public class SettingsNbt {
             .networkSynchronized(BlockPos.STREAM_CODEC)
             .build();
 
-    public static void register() {
+    //? if fabric {
+    /*public static void register() {
         Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE, GradientWand.id("settings"), SETTINGS);
         Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE, GradientWand.id("point_a"), POINT_A);
     }
+    *///?}
+    //? if neoforge {
+    // The component types themselves are built exactly as above; only the moment they reach the
+    // registry differs. Registering the existing instances as suppliers keeps SETTINGS and POINT_A
+    // plain fields, so every read and write site in this file is untouched.
+    private static final DeferredRegister<net.minecraft.core.component.DataComponentType<?>> COMPONENTS =
+            DeferredRegister.create(Registries.DATA_COMPONENT_TYPE, GradientWand.MOD_ID);
+
+    static {
+        COMPONENTS.register("settings", () -> SETTINGS);
+        COMPONENTS.register("point_a", () -> POINT_A);
+    }
+
+    public static void register(IEventBus modBus) {
+        COMPONENTS.register(modBus);
+    }
+    //?}
 
     private static WandSettings readRaw(ItemStack stack) {
         return stack.getOrDefault(SETTINGS, WandSettings.DEFAULT);

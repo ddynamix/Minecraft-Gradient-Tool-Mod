@@ -3,15 +3,23 @@ package net.tyler.gradientwand.network;
 //? if <1.21 {
 /*import net.fabricmc.fabric.api.networking.v1.FabricPacket;
 import net.fabricmc.fabric.api.networking.v1.PacketType;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
-*///?} else {
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+*///?}
+//? if >=1.21 && fabric {
+/*import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+*///?}
+//? if neoforge {
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 //?}
 
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.server.level.ServerPlayer;
 import net.tyler.gradientwand.GradientWand;
@@ -36,8 +44,9 @@ import net.tyler.gradientwand.item.custom.GradientWandItem;
     public static void registerReceiver() {
         ServerPlayNetworking.registerGlobalReceiver(TYPE, (packet, player, responseSender) -> handle(player));
     }
-*///?} else {
-public record WandCancelPacket() implements CustomPacketPayload {
+*///?}
+//? if >=1.21 && fabric {
+/*public record WandCancelPacket() implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<WandCancelPacket> ID =
             new CustomPacketPayload.Type<>(GradientWand.id("wand_cancel"));
@@ -54,6 +63,27 @@ public record WandCancelPacket() implements CustomPacketPayload {
         PayloadTypeRegistry.playC2S().register(ID, CODEC);
 
         ServerPlayNetworking.registerGlobalReceiver(ID, (payload, context) -> handle(context.player()));
+    }
+*///?}
+//? if neoforge {
+public record WandCancelPacket() implements CustomPacketPayload {
+
+    public static final CustomPacketPayload.Type<WandCancelPacket> ID =
+            new CustomPacketPayload.Type<>(GradientWand.id("wand_cancel"));
+
+    public static final StreamCodec<RegistryFriendlyByteBuf, WandCancelPacket> CODEC =
+            StreamCodec.unit(new WandCancelPacket());
+
+    @Override
+    public CustomPacketPayload.Type<WandCancelPacket> type() {
+        return ID;
+    }
+
+    // NeoForge registers payloads through one event rather than per class, so the mod's
+    // network entrypoint hands the registrar in. IPayloadContext.player() is the common
+    // Player type; this handler only ever runs server side, so the cast is safe.
+    public static void register(PayloadRegistrar registrar) {
+        registrar.playToServer(ID, CODEC, (payload, context) -> handle((ServerPlayer) context.player()));
     }
 //?}
 

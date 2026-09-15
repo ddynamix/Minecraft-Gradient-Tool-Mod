@@ -1,6 +1,11 @@
 package net.tyler.gradientwand.item.custom;
 
-import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
+//? if fabric {
+/*import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
+*///?}
+//? if neoforge {
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+//?}
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.player.Inventory;
@@ -67,7 +72,8 @@ public class GradientWandItem extends Item {
 
     // The wand never breaks blocks. Cancelling is handled client side instead, so that it works
     // when you are aiming at open air, which is the normal case once a preview is on screen.
-    public static void registerNoBlockBreaking() {
+    //? if fabric {
+    /*public static void registerNoBlockBreaking() {
         AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> {
             ItemStack stack = player.getItemInHand(hand);
 
@@ -78,6 +84,15 @@ public class GradientWandItem extends Item {
             return InteractionResult.SUCCESS;
         });
     }
+    *///?}
+    //? if neoforge {
+    // Cancelling the event is NeoForge's way of saying "this click did not break anything"
+    public static void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) {
+        if (event.getItemStack().getItem() instanceof GradientWandItem) {
+            event.setCanceled(true);
+        }
+    }
+    //?}
 
     @Override
     public InteractionResult useOn(UseOnContext context) {
@@ -122,9 +137,18 @@ public class GradientWandItem extends Item {
     public boolean allowNbtUpdateAnimation(Player player, InteractionHand hand, ItemStack oldStack, ItemStack newStack) {
         return false;
     }
-    *///?} else {
-    @Override
+    *///?}
+    //? if >=1.21 && fabric {
+    /*@Override
     public boolean allowComponentsUpdateAnimation(Player player, InteractionHand hand, ItemStack oldStack, ItemStack newStack) {
+        return false;
+    }
+    *///?}
+    //? if neoforge {
+    // Both Fabric hooks above are Fabric API injections onto Item. NeoForge injects its own
+    // instead, through IItemExtension, and it is told the stacks rather than the player and hand.
+    @Override
+    public boolean shouldCauseReequipAnimation(ItemStack oldStack, ItemStack newStack, boolean slotChanged) {
         return false;
     }
     //?}

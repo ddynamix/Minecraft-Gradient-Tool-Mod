@@ -66,6 +66,9 @@ tasks.test {
 }
 
 tasks.processResources {
+    // NeoForge metadata belongs only in the NeoForge jar
+    exclude("META-INF/neoforge.mods.toml")
+
     val values = mapOf(
         "id" to modId,
         "name" to modName,

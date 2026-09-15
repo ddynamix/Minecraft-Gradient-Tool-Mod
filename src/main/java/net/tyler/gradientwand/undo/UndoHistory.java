@@ -1,6 +1,11 @@
 package net.tyler.gradientwand.undo;
 
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+//? if fabric {
+/*import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+*///?}
+//? if neoforge {
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+//?}
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.entity.player.Player;
@@ -142,9 +147,17 @@ public class UndoHistory {
         return placed;
     }
 
-    public static void registerCleanup() {
+    //? if fabric {
+    /*public static void registerCleanup() {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> forget(handler.player));
     }
+    *///?}
+    //? if neoforge {
+    // Same job, different hook: NeoForge reports the logout as a game-bus event
+    public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        forget(event.getEntity());
+    }
+    //?}
 
     private static void forget(Player player) {
         UNDO.keySet().removeIf(key -> key.player().equals(player.getUUID()));
